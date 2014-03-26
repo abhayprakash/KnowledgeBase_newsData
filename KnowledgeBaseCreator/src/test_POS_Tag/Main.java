@@ -24,7 +24,7 @@ public class Main {
 
         // =================== INPUT ================================
 
-        String s = "Mr. Bob stays in Delhi since 1998. He likes to eat chicken at night.";
+        String s = "You're your mind";//"Mr. Bob stays in Delhi since 1998. He likes to eat chicken at night.";
         System.out.println(s);
 
         // ======================================================
