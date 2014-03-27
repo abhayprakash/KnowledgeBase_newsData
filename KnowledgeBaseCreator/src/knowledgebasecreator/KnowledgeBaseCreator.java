@@ -36,10 +36,13 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Vector;
+import org.neo4j.cypher.javacompat.ExecutionEngine;
+import org.neo4j.cypher.javacompat.ExecutionResult;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Relationship;
@@ -102,32 +105,57 @@ public class KnowledgeBaseCreator {
         String query;
         query = "SELECT newsHeadline FROM global_information_repository";
         ResultSet rs = stmt.executeQuery(query);
+        /*
+        ExecutionEngine engine = new ExecutionEngine( graphDb );
+ 
+        ExecutionResult result;
+        */
+        
+        HashMap<String, Node > nodeIndex = new HashMap <>();
         
         while(rs.next()){
             String headline  = rs.getString("newsHeadline");
             System.out.println(headline);
             Vector<String> entities = getEntities(headline);
-            Vector<Node> occuredInOneHeadline = new Vector<>();
-            for(String st : entities)
+            Node entityNode, prevNode;
+            
+            for(int i = 0; i < entities.size(); i++)
             {
+                String st = entities.get(i);
                 //insert in neo4j
                 try(Transaction tx = graphDb.beginTx())
                 {
-                    Node entityNode = graphDb.createNode();
-                    entityNode.setProperty("Entity", st);
-                    for(int i = 0; i < occuredInOneHeadline.size(); i++)
+                    if(!nodeIndex.containsKey(st))
+                    {    
+                        entityNode = graphDb.createNode();
+                        entityNode.setProperty("Entity", st);
+                    }
+                    else
+                        entityNode = nodeIndex.get(st);
+                    
+                    entityNode.setProperty("News", headline);
+                    
+                    for(int j = 0; j < i; j++)
                     {
-                        Relationship relationship = entityNode.createRelationshipTo( occuredInOneHeadline.get(i), RelTypes.OCCURED_TOGETHER );
+                        prevNode = nodeIndex.get(entities.get(j));
+                        Relationship relationship = entityNode.createRelationshipTo( prevNode, RelTypes.OCCURED_TOGETHER );
                         relationship.setProperty( "HeadLine", headline);
-                        relationship = occuredInOneHeadline.get(i).createRelationshipTo( entityNode, RelTypes.OCCURED_TOGETHER );
+                        relationship = prevNode.createRelationshipTo( entityNode, RelTypes.OCCURED_TOGETHER );
                         relationship.setProperty( "HeadLine", headline);
                     }
-                    occuredInOneHeadline.add(entityNode); 
+                    nodeIndex.put(st, entityNode);
                     // Database operations go here
                     tx.success();
                 }
             }
         }
+        /*
+        try ( Transaction ignored = graphDb.beginTx() )
+        {
+            result = engine.execute( "MATCH n RETURN n LIMIT 25" );
+            System.out.println("Result" + result);
+        }
+        */
         writerDeb.close();
         rs.close();
     }
