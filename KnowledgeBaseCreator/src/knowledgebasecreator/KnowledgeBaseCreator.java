@@ -40,6 +40,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Vector;
+import org.neo4j.graphdb.GraphDatabaseService;
+import org.neo4j.graphdb.Node;
+import org.neo4j.graphdb.RelationshipType;
+import org.neo4j.graphdb.Transaction;
+import org.neo4j.graphdb.factory.GraphDatabaseFactory;
+import org.neo4j.graphdb.index.Index;
 
 /**
  *
@@ -55,6 +61,13 @@ public class KnowledgeBaseCreator {
     
     static PrintWriter writerDeb;// = new PrintWriter(MachineDep.logFilePath, "UTF-8");
     
+    private static GraphDatabaseService graphDb;
+    
+    private static enum RelTypes implements RelationshipType
+    {
+        OCCURED_TOGETHER
+    }
+    
     static void DebMsg(String id, String msg)
     {
         writerDeb.println(id + ": " + msg);
@@ -63,6 +76,9 @@ public class KnowledgeBaseCreator {
     public static void main(String[] args) throws IOException {
         writerDeb = new PrintWriter(MachineDep.logFilePath, "UTF-8");
         
+        graphDb = new GraphDatabaseFactory().newEmbeddedDatabase( MachineDep.DB_PATH );
+        registerShutdownHook( graphDb );
+        
         try{
             Class.forName(MachineDep.JDBC_DRIVER);
             
@@ -70,16 +86,18 @@ public class KnowledgeBaseCreator {
             conn = (Connection) DriverManager.getConnection(MachineDep.DB_URL,MachineDep.USER,MachineDep.PASS);
             stmt = (Statement) conn.createStatement();
             
-            insertEntitiesInGraphDb();
+            insertEntitiesInGraphDb(graphDb);
             
             stmt.close();
             conn.close();
         }catch(Exception e){
             System.out.println("Error: " + e);
         }
+        
+        graphDb.shutdown();
     }
     
-    static void insertEntitiesInGraphDb() throws SQLException, FileNotFoundException, UnsupportedEncodingException{
+    static void insertEntitiesInGraphDb(GraphDatabaseService graphDb) throws SQLException, FileNotFoundException, UnsupportedEncodingException{
         String query;
         query = "SELECT newsHeadline FROM global_information_repository";
         ResultSet rs = stmt.executeQuery(query);
@@ -91,11 +109,32 @@ public class KnowledgeBaseCreator {
             for(String st : entities)
             {
                 //insert in neo4j
-                DebMsg("entity insetion", st);
+                try(Transaction tx = graphDb.beginTx())
+                {
+                    Node entityNode = graphDb.createNode();
+                    entityNode.setProperty("Entity", st);
+                    // Database operations go here
+                    tx.success();
+                }
             }
         }
         writerDeb.close();
         rs.close();
+    }
+    
+    private static void registerShutdownHook( final GraphDatabaseService graphDb )
+    {
+        // Registers a shutdown hook for the Neo4j instance so that it
+        // shuts down nicely when the VM exits (even if you "Ctrl-C" the
+        // running application).
+        Runtime.getRuntime().addShutdownHook( new Thread()
+        {
+            @Override
+            public void run()
+            {
+                graphDb.shutdown();
+            }
+        } );
     }
     
     static Vector<String> getEntities(String s)
