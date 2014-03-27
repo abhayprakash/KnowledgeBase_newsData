@@ -42,6 +42,7 @@ import java.util.Properties;
 import java.util.Vector;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Node;
+import org.neo4j.graphdb.Relationship;
 import org.neo4j.graphdb.RelationshipType;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.factory.GraphDatabaseFactory;
@@ -106,6 +107,7 @@ public class KnowledgeBaseCreator {
             String headline  = rs.getString("newsHeadline");
             System.out.println(headline);
             Vector<String> entities = getEntities(headline);
+            Vector<Node> occuredInOneHeadline = new Vector<>();
             for(String st : entities)
             {
                 //insert in neo4j
@@ -113,6 +115,14 @@ public class KnowledgeBaseCreator {
                 {
                     Node entityNode = graphDb.createNode();
                     entityNode.setProperty("Entity", st);
+                    for(int i = 0; i < occuredInOneHeadline.size(); i++)
+                    {
+                        Relationship relationship = entityNode.createRelationshipTo( occuredInOneHeadline.get(i), RelTypes.OCCURED_TOGETHER );
+                        relationship.setProperty( "HeadLine", headline);
+                        relationship = occuredInOneHeadline.get(i).createRelationshipTo( entityNode, RelTypes.OCCURED_TOGETHER );
+                        relationship.setProperty( "HeadLine", headline);
+                    }
+                    occuredInOneHeadline.add(entityNode); 
                     // Database operations go here
                     tx.success();
                 }
