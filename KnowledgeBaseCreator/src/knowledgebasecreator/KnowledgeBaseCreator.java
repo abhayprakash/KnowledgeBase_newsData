@@ -36,7 +36,10 @@ import java.nio.file.Files;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -109,9 +112,9 @@ public class KnowledgeBaseCreator {
         graphDb.shutdown();
     }
     
-    static void insertEntitiesInGraphDb(GraphDatabaseService graphDb) throws SQLException, FileNotFoundException, UnsupportedEncodingException, IOException, SAXException, ParserConfigurationException, XPathExpressionException{
+    static void insertEntitiesInGraphDb(GraphDatabaseService graphDb) throws SQLException, FileNotFoundException, UnsupportedEncodingException, IOException, SAXException, ParserConfigurationException, XPathExpressionException, ParseException{
         String query;
-        query = "SELECT newsHeadline FROM global_information_repository";
+        query = "SELECT newsHeadline, start_time_stamp FROM global_information_repository";
         ResultSet rs = stmt.executeQuery(query);
         /*
         ExecutionEngine engine = new ExecutionEngine( graphDb );
@@ -123,6 +126,13 @@ public class KnowledgeBaseCreator {
         
         while(rs.next()){
             String headline  = rs.getString("newsHeadline");
+            String timeOfNews = rs.getString("start_time_stamp");
+            
+            String[] dateAndTime = timeOfNews.split(" ");
+            
+            SimpleDateFormat ft = new SimpleDateFormat ("yyyy-MM-dd");
+            Date date = ft.parse(dateAndTime[0]);
+            
             System.out.println(headline);
             List<List<String>> entities = getEntities_AndTypes(headline);
             Node entityNode, prevNode, newsNode;
@@ -133,22 +143,43 @@ public class KnowledgeBaseCreator {
             for(int i = 0; i < entities.size(); i++)
             {
                 String entityName = entities.get(0).get(i); 
+                String entityType = entities.get(1).get(i);
                 //insert in neo4j
                 try(Transaction tx = graphDb.beginTx())
                 {
                     if(!nodeIndex.containsKey(entityName))
-                    {    
-                        entityNode = graphDb.createNode();
+                    {   
+                        label = DynamicLabel.label(entityType);
+                        entityNode = graphDb.createNode(label);
                         entityNode.setProperty("name", entityName);
                         entityNode.setProperty("noOfTimesAppeared", 0);
                         entityNode.setProperty("daysInLongestStreak", 1);
-                        
+                        entityNode.setProperty("currentStreak", 1);
+                        entityNode.setProperty("endDayOfLongestStreak", date); // our purpose is basically to capture new appearance of entity so taking just start
                     }
                     else
                     {
-                        entityNode = nodeIndex.get(st);
-                        Integer newCount = Integer.parseInt((String) entityNode.getProperty("OccuredCount")) + 1;
-                        entityNode.setProperty("OccuredCount", newCount);
+                        entityNode = nodeIndex.get(entityName);
+                        Integer newCount = Integer.parseInt((String) entityNode.getProperty("noOfTimesAppeared")) + 1;
+                        entityNode.setProperty("noOfTimesAppeared", newCount);
+                        
+                        Date lastDate = (Date) entityNode.getProperty("endDayOfLongestStreak");
+                        entityNode.setProperty("endDayOfLongestStreak", date);
+                        
+                        if(date.getTime() - lastDate.getTime() == (24 * 60 * 60 * 1000))
+                        {
+                            Integer currentStreak = Integer.parseInt((String)entityNode.getProperty("currentStreak")) + 1;
+                            entityNode.setProperty("currentStreak", currentStreak);
+                            Integer longestStreak = Integer.parseInt((String)entityNode.getProperty("daysInLongestStreak"));
+                            if(currentStreak > longestStreak)
+                            {
+                                entityNode.setProperty("daysInLongestStreak", currentStreak);
+                            }
+                        }
+                        else
+                        {
+                            entityNode.setProperty("currentStreak", 1);
+                        }
                     }
                     entityNode.setProperty("News", headline);
                     
