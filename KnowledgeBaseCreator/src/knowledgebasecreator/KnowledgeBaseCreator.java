@@ -6,6 +6,7 @@
 
 package knowledgebasecreator;
 
+import com.alchemyapi.api.AlchemyAPI;
 import com.mysql.jdbc.Connection;
 import com.mysql.jdbc.Statement;
 import edu.stanford.nlp.dcoref.CorefChain;
@@ -41,15 +42,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Vector;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.xpath.XPathExpressionException;
 import org.neo4j.cypher.javacompat.ExecutionEngine;
 import org.neo4j.cypher.javacompat.ExecutionResult;
+import org.neo4j.graphdb.DynamicLabel;
 import org.neo4j.graphdb.GraphDatabaseService;
+import org.neo4j.graphdb.Label;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Relationship;
 import org.neo4j.graphdb.RelationshipType;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.factory.GraphDatabaseFactory;
 import org.neo4j.graphdb.index.Index;
+import org.w3c.dom.Document;
+import org.w3c.dom.NodeList;
+import org.xml.sax.SAXException;
 
 /**
  *
@@ -101,7 +109,7 @@ public class KnowledgeBaseCreator {
         graphDb.shutdown();
     }
     
-    static void insertEntitiesInGraphDb(GraphDatabaseService graphDb) throws SQLException, FileNotFoundException, UnsupportedEncodingException{
+    static void insertEntitiesInGraphDb(GraphDatabaseService graphDb) throws SQLException, FileNotFoundException, UnsupportedEncodingException, IOException, SAXException, ParserConfigurationException, XPathExpressionException{
         String query;
         query = "SELECT newsHeadline FROM global_information_repository";
         ResultSet rs = stmt.executeQuery(query);
@@ -116,23 +124,32 @@ public class KnowledgeBaseCreator {
         while(rs.next()){
             String headline  = rs.getString("newsHeadline");
             System.out.println(headline);
-            Vector<String> entities = getEntities(headline);
-            Node entityNode, prevNode;
+            List<List<String>> entities = getEntities_AndTypes(headline);
+            Node entityNode, prevNode, newsNode;
+            
+            Label label = DynamicLabel.label("newsNode");
+            newsNode = graphDb.createNode(label);
             
             for(int i = 0; i < entities.size(); i++)
             {
-                String st = entities.get(i);
+                String entityName = entities.get(0).get(i); 
                 //insert in neo4j
                 try(Transaction tx = graphDb.beginTx())
                 {
-                    if(!nodeIndex.containsKey(st))
+                    if(!nodeIndex.containsKey(entityName))
                     {    
                         entityNode = graphDb.createNode();
-                        entityNode.setProperty("Entity", st);
+                        entityNode.setProperty("name", entityName);
+                        entityNode.setProperty("noOfTimesAppeared", 0);
+                        entityNode.setProperty("daysInLongestStreak", 1);
+                        
                     }
                     else
+                    {
                         entityNode = nodeIndex.get(st);
-                    
+                        Integer newCount = Integer.parseInt((String) entityNode.getProperty("OccuredCount")) + 1;
+                        entityNode.setProperty("OccuredCount", newCount);
+                    }
                     entityNode.setProperty("News", headline);
                     
                     for(int j = 0; j < i; j++)
@@ -149,22 +166,13 @@ public class KnowledgeBaseCreator {
                 }
             }
         }
-        /*
-        try ( Transaction ignored = graphDb.beginTx() )
-        {
-            result = engine.execute( "MATCH n RETURN n LIMIT 25" );
-            System.out.println("Result" + result);
-        }
-        */
+        
         writerDeb.close();
         rs.close();
     }
     
     private static void registerShutdownHook( final GraphDatabaseService graphDb )
     {
-        // Registers a shutdown hook for the Neo4j instance so that it
-        // shuts down nicely when the VM exits (even if you "Ctrl-C" the
-        // running application).
         Runtime.getRuntime().addShutdownHook( new Thread()
         {
             @Override
@@ -175,45 +183,25 @@ public class KnowledgeBaseCreator {
         } );
     }
     
-    static Vector<String> getEntities(String s)
+    static List<List<String>> getEntities_AndTypes(String s) throws IOException, SAXException, ParserConfigurationException, XPathExpressionException
     {
-        Vector<String> toret = new Vector<>();
-        Properties props = new Properties();
-        props.put("annotators","tokenize, ssplit, pos, lemma, ner");
-        StanfordCoreNLP pipeline = new StanfordCoreNLP(props);
+        List<List<String>> toret = new Vector<>();
         
-        Annotation document = new Annotation(s);
-        pipeline.annotate(document);
+        toret.add(new ArrayList<String>());
+        toret.add(new ArrayList<String>());
         
-        List<CoreMap> sentences = document.get(SentencesAnnotation.class);
-        for(CoreMap sentence: sentences)
+        AlchemyAPI alchemyObj = AlchemyAPI.GetInstanceFromFile("E:\\Projects\\NewsData\\KnowledgeBase\\KnowledgeBaseCreator\\src\\AlchemyAPI_Java-0.8\\testdir\\api_key.txt");
+        Document doc = alchemyObj.TextGetRankedNamedEntities(s);
+        
+        NodeList nameList = doc.getElementsByTagName("text");
+        NodeList typeList = doc.getElementsByTagName("type");
+        
+        for(int i = 0; i < nameList.getLength(); i++)
         {
-            List<CoreLabel> tokens = sentence.get(TokensAnnotation.class);
-            int tokens_ListSize = tokens.size();
-            
-            CoreLabel token;
-            for(int i = 0; i <  tokens_ListSize ; i++ )
-            {
-                String possibleEntity = "";
-                token = tokens.get(i);
-                String pos = token.get(PartOfSpeechAnnotation.class);
-                String ner = token.get(NamedEntityTagAnnotation.class);
-                while(pos.equals("NNP") || (pos.equals("NN") && !ner.equals("O"))){
-                    possibleEntity += " " + token.get(TextAnnotation.class);
-                    i++;
-                    if(i == tokens_ListSize)
-                        break;
-                    token = tokens.get(i);
-                    pos = token.get(PartOfSpeechAnnotation.class);
-                    ner = token.get(NamedEntityTagAnnotation.class);
-                }
-                
-                if(!possibleEntity.equals(""))
-                {
-                    toret.add(possibleEntity);
-                }
-            }
+            toret.get(0).add(nameList.item(i).getTextContent());
+            toret.get(1).add(typeList.item(i).getTextContent());
         }
+        
         return toret;
     }
 }
