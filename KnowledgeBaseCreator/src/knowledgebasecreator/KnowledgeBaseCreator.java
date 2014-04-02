@@ -83,12 +83,16 @@ public class KnowledgeBaseCreator {
         OCCURED_TOGETHER
     }
     
+    static AlchemyAPI alchemyObj;// = AlchemyAPI.GetInstanceFromFile("E:\\Projects\\NewsData\\KnowledgeBase\\KnowledgeBaseCreator\\src\\AlchemyAPI_Java-0.8\\testdir\\api_key.txt");
+        
+    
     static void DebMsg(String id, String msg)
     {
         writerDeb.println(id + ": " + msg);
     }
     
     public static void main(String[] args) throws IOException {
+        alchemyObj = AlchemyAPI.GetInstanceFromFile("E:\\Projects\\NewsData\\KnowledgeBase\\KnowledgeBaseCreator\\src\\AlchemyAPI_Java-0.8\\testdir\\api_key.txt");
         writerDeb = new PrintWriter(MachineDep.logFilePath, "UTF-8");
         
         graphDb = new GraphDatabaseFactory().newEmbeddedDatabase( MachineDep.DB_PATH );
@@ -114,32 +118,51 @@ public class KnowledgeBaseCreator {
     
     static void insertEntitiesInGraphDb(GraphDatabaseService graphDb) throws SQLException, FileNotFoundException, UnsupportedEncodingException, IOException, SAXException, ParserConfigurationException, XPathExpressionException, ParseException{
         String query;
-        query = "SELECT newsHeadline, start_time_stamp FROM global_information_repository";
+        query = "SELECT newsHeadline, start_time_stamp, source_id FROM global_information_repository";
         ResultSet rs = stmt.executeQuery(query);
-        /*
-        ExecutionEngine engine = new ExecutionEngine( graphDb );
- 
-        ExecutionResult result;
-        */
-        
-        HashMap<String, Node > nodeIndex = new HashMap <>();
+               
+        HashMap<String, Node > nodeIndex = new HashMap <>(); // this will be used for any type of node
         
         while(rs.next()){
             String headline  = rs.getString("newsHeadline");
             String timeOfNews = rs.getString("start_time_stamp");
+            String publisherId = rs.getString("source_id");
             
+            System.out.println(headline);
+            
+            // date of publication
             String[] dateAndTime = timeOfNews.split(" ");
-            
             SimpleDateFormat ft = new SimpleDateFormat ("yyyy-MM-dd");
             Date date = ft.parse(dateAndTime[0]);
             
-            System.out.println(headline);
+            // Common Variables
+            Node entityNode, prevNode, newsNode, conceptNode, topicNode, publisherNode;
+            Relationship relationship;
+            Label label;
+                    
+            // creating News Node
+            label = DynamicLabel.label("newsNode");
+            newsNode = graphDb.createNode(label);   // assuming news Headline will not repeat
+            newsNode.setProperty("headline", headline);
+            newsNode.setProperty("dateShown", date.toString());
+            
+            // creating or getting Topic Node(s)
+            label = DynamicLabel.label("Topic");
+            Document topicInfo = alchemyObj.TextGetCategory(headline);
+            
+            
+            // creating or getting Concept Node(s)
+            label = DynamicLabel.label("Concept");
+            Document conceptInfo = alchemyObj.TextGetRankedConcepts(headline);
+            
+            
+            // creating or getting Publisher Node
+            label = DynamicLabel.label("Publisher");
+            publisherNode = graphDb.createNode(label);
+            publisherNode.setProperty("id", publisherId);
+            
+            // creating entity nodes
             List<List<String>> entities = getEntities_AndTypes(headline);
-            Node entityNode, prevNode, newsNode;
-            
-            Label label = DynamicLabel.label("newsNode");
-            newsNode = graphDb.createNode(label);
-            
             for(int i = 0; i < entities.size(); i++)
             {
                 String entityName = entities.get(0).get(i); 
@@ -147,6 +170,7 @@ public class KnowledgeBaseCreator {
                 //insert in neo4j
                 try(Transaction tx = graphDb.beginTx())
                 {
+                    // creating entity node
                     if(!nodeIndex.containsKey(entityName))
                     {   
                         label = DynamicLabel.label(entityType);
@@ -181,12 +205,11 @@ public class KnowledgeBaseCreator {
                             entityNode.setProperty("currentStreak", 1);
                         }
                     }
-                    entityNode.setProperty("News", headline);
                     
                     for(int j = 0; j < i; j++)
                     {
                         prevNode = nodeIndex.get(entities.get(j));
-                        Relationship relationship = entityNode.createRelationshipTo( prevNode, RelTypes.OCCURED_TOGETHER );
+                        relationship = entityNode.createRelationshipTo( prevNode, RelTypes.OCCURED_TOGETHER );
                         relationship.setProperty( "HeadLine", headline);
                         relationship = prevNode.createRelationshipTo( entityNode, RelTypes.OCCURED_TOGETHER );
                         relationship.setProperty( "HeadLine", headline);
@@ -221,7 +244,6 @@ public class KnowledgeBaseCreator {
         toret.add(new ArrayList<String>());
         toret.add(new ArrayList<String>());
         
-        AlchemyAPI alchemyObj = AlchemyAPI.GetInstanceFromFile("E:\\Projects\\NewsData\\KnowledgeBase\\KnowledgeBaseCreator\\src\\AlchemyAPI_Java-0.8\\testdir\\api_key.txt");
         Document doc = alchemyObj.TextGetRankedNamedEntities(s);
         
         NodeList nameList = doc.getElementsByTagName("text");

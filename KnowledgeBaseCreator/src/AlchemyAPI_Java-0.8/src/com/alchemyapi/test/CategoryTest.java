@@ -19,17 +19,19 @@ class CategoryTest {
                ParserConfigurationException, XPathExpressionException
     {
         // Create an AlchemyAPI object.
-        AlchemyAPI alchemyObj = AlchemyAPI.GetInstanceFromFile("api_key.txt");
+        AlchemyAPI alchemyObj = AlchemyAPI.GetInstanceFromFile("E:\\Projects\\NewsData\\KnowledgeBase\\KnowledgeBaseCreator\\src\\AlchemyAPI_Java-0.8\\testdir\\api_key.txt");
 
         // Categorize a web URL by topic.
+        /*
         Document doc = alchemyObj.URLGetCategory("http://www.techcrunch.com/");
         System.out.println(getStringFromDocument(doc));
-
+        */
         // Categorize some text.
-        doc = alchemyObj.TextGetCategory("Latest on the War in Iraq.");
+        Document doc = alchemyObj.TextGetCategory("Rahul says Modi s Gujarat govt was involved in 2002 riots");
         System.out.println(getStringFromDocument(doc));
 
         // Load a HTML document to analyze.
+        /*
         String htmlDoc = getFileContents("data/example.html");
 
         // Categorize a HTML document by topic.
@@ -40,6 +42,7 @@ class CategoryTest {
         categoryParams.setOutputMode(AlchemyAPI_Params.OUTPUT_RDF);
         doc = alchemyObj.HTMLGetCategory(htmlDoc, "http://www.test.com/", categoryParams);
         System.out.println(getStringFromDocument(doc));
+    */
     }
 
     // utility function

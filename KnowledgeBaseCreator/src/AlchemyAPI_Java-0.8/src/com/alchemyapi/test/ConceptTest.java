@@ -17,24 +17,24 @@ class ConceptTest {
     public static void main(String[] args) throws IOException, SAXException,
             ParserConfigurationException, XPathExpressionException {
         // Create an AlchemyAPI object.
-        AlchemyAPI alchemyObj = AlchemyAPI.GetInstanceFromFile("api_key.txt");
-
+        AlchemyAPI alchemyObj = AlchemyAPI.GetInstanceFromFile("E:\\Projects\\NewsData\\KnowledgeBase\\KnowledgeBaseCreator\\src\\AlchemyAPI_Java-0.8\\testdir\\api_key.txt");
+/*
         // Extract concept tags for a web URL.
         Document doc = alchemyObj.URLGetRankedConcepts("http://www.techcrunch.com/");
         System.out.println(getStringFromDocument(doc));
-
+*/
         // Extract concept tags for a text string.
-        doc = alchemyObj.TextGetRankedConcepts(
-            "This thing has a steering wheel, tires, and an engine.  Do you know what it is?");
-        System.out.println(getStringFromDocument(doc));
-
+        Document doc = alchemyObj.TextGetRankedConcepts(
+            "Rahul says Modi s Gujarat govt was involved in 2002 riots");
+        System.out.println(getStringFromDocument(doc)); 
+/*
         // Load a HTML document to analyze.
         String htmlDoc = getFileContents("data/example.html");
 
         // Extract concept tags for a HTML document.
         doc = alchemyObj.HTMLGetRankedConcepts(htmlDoc, "http://www.test.com/");
         System.out.println(getStringFromDocument(doc));
-    }
+*/    }
 
     // utility function
     private static String getFileContents(String filename)

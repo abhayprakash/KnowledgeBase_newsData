@@ -23,15 +23,15 @@ class alchemyTest {
         AlchemyAPI alchemyObj = AlchemyAPI.GetInstanceFromFile("E:\\Projects\\NewsData\\KnowledgeBase\\KnowledgeBaseCreator\\src\\AlchemyAPI_Java-0.8\\testdir\\api_key.txt");
 
         // Extract a ranked list of named entities from a text string.
-        Document doc = alchemyObj.TextGetRankedNamedEntities("Mr. Bob is going to India, yes India");
+        Document doc = alchemyObj.TextGetRankedNamedEntities("Kejriwal govt to form SIT to probe 1984 riots");
         System.out.println(getStringFromDocument(doc));
-        
+        /*
         System.out.println(doc.getElementsByTagName("type").item(0).getTextContent());
         System.out.println(doc.getElementsByTagName("text").item(0).getTextContent());
         
         System.out.println(doc.getElementsByTagName("type").item(1).getTextContent());
         System.out.println(doc.getElementsByTagName("text").item(1).getTextContent());
-        
+        */
         //doc.getDocumentElement().normalize();
  /*
         System.out.println("Root element :" + doc.getDocumentElement().getNodeName());
