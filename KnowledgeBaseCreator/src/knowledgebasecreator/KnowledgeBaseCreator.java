@@ -147,9 +147,22 @@ public class KnowledgeBaseCreator {
             newsNode.setProperty("dateShown", date.toString());
             
             // creating or getting Topic Node(s)
-            label = DynamicLabel.label("Topic");
             Document topicInfo = alchemyObj.TextGetCategory(headline);
-            
+            NodeList categoryList = topicInfo.getElementsByTagName("category");
+            String likelyTopic = categoryList.item(0).getTextContent();
+            if(!likelyTopic.equals("unknown"))
+            {
+                if(nodeIndex.containsKey(likelyTopic))
+                {
+                    topicNode = nodeIndex.get(likelyTopic); 
+                }
+                else
+                {
+                    label = DynamicLabel.label("Topic");
+                    topicNode = graphDb.createNode(label);
+                    nodeIndex.put(likelyTopic, topicNode);
+                }
+            }
             
             // creating or getting Concept Node(s)
             label = DynamicLabel.label("Concept");
