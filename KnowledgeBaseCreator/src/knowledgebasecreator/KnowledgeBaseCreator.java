@@ -256,7 +256,7 @@ public class KnowledgeBaseCreator {
                     String entitySentiment = entities.get(2).get(i);
                     
                     // BUG BELOW IT
-                    
+                    System.out.println("en :: " + entityName);
                     //insert in neo4j
                     if(!nodeIndex.containsKey(entityName))
                     {
@@ -269,7 +269,7 @@ public class KnowledgeBaseCreator {
                         entityNode.setProperty("generalSentimentOfSociety", entitySentiment);
                         nodeIndex.put(entityName, entityNode);
                         
-                        entityNode.setProperty("noOfTimesAppeared", 0);
+                        entityNode.setProperty("noOfTimesAppeared", 1);
                         entityNode.setProperty("daysInLongestStreak", 1);
                         entityNode.setProperty("currentStreak", 1);
                         entityNode.setProperty("endDayOfLongestStreak", dateString); // our purpose is basically to capture new appearance of entity so taking just start
@@ -278,14 +278,23 @@ public class KnowledgeBaseCreator {
                     else
                     {
                         // BUG BELOW IT
-                        
                         entityNode = nodeIndex.get(entityName);
                         // for the case if this was created due to being concept
-                        entityNode.setProperty("type", entityType);
-                        entityNode.setProperty("generalSentimentOfSociety", entitySentiment);
+                        try{
+                            entityNode.getProperty("noOfTimesAppeared");
+                        }
+                        catch(Exception ex)
+                        {
+                            entityNode.setProperty("type", entityType);
+                            entityNode.setProperty("generalSentimentOfSociety", entitySentiment);
+                            entityNode.setProperty("noOfTimesAppeared", 0);
+                            entityNode.setProperty("daysInLongestStreak", 1);
+                            entityNode.setProperty("currentStreak", 1);
+                            entityNode.setProperty("endDayOfLongestStreak", dateString); // our purpose is basically to capture new appearance of entity so taking just start
+                        }
                         
                         // BUG BELOW IT
-                        
+                        System.out.println("DEBUG HERE");    
                         Integer newCount = Integer.parseInt(entityNode.getProperty("noOfTimesAppeared").toString()) + 1;
                         entityNode.setProperty("noOfTimesAppeared", newCount.toString());
                         
