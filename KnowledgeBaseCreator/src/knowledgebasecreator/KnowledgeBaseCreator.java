@@ -92,7 +92,7 @@ public class KnowledgeBaseCreator {
     
     static AlchemyAPI alchemyObj;// = AlchemyAPI.GetInstanceFromFile("E:\\Projects\\NewsData\\KnowledgeBase\\KnowledgeBaseCreator\\src\\AlchemyAPI_Java-0.8\\testdir\\api_key.txt");
     
-    static HashMap<String, Node > nodeIndex = new HashMap <>(); // this will be used for any type of node
+    static HashMap<String, Node> nodeIndex = new HashMap <>(); // this will be used for any type of node 
     
     //TODO
     //static HashMap<Node, HashMap<Node, Relationship>> relTable = new HashMap<>();
@@ -160,7 +160,7 @@ public class KnowledgeBaseCreator {
                 Document topicInfo = alchemyObj.TextGetCategory(headline);
                 NodeList categoryList = topicInfo.getElementsByTagName("category");
                 String likelyTopic = categoryList.item(0).getTextContent();
-                if(!likelyTopic.equals("unknown"))
+                if(!likelyTopic.equals("unknown") && !likelyTopic.equals(""))
                 {
                     if(nodeIndex.containsKey(likelyTopic))
                     {
@@ -189,6 +189,7 @@ public class KnowledgeBaseCreator {
                     {
                         conceptNode = graphDb.createNode(label);
                         conceptNode.setProperty("name", conceptName);
+                        nodeIndex.put("name", conceptNode);
                     }
                     
                     // creating relationship CONCEPT_FALLS_IN
