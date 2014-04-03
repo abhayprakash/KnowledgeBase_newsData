@@ -164,6 +164,7 @@ public class KnowledgeBaseCreator {
                     {
                         label = DynamicLabel.label("Topic");
                         topicNode = graphDb.createNode(label);
+                        topicNode.setProperty("name", likelyTopic);
                         nodeIndex.put(likelyTopic, topicNode);
                     }
                 }
