@@ -49,8 +49,25 @@ class SentimentTest {
         System.out.println("entity targetted sentiment");
 	AlchemyAPI_NamedEntityParams entityParams = new AlchemyAPI_NamedEntityParams();
 	entityParams.setSentiment(true);
-	doc = alchemyObj.TextGetRankedNamedEntities("Modi says Rahul is awesome", entityParams);
-	System.out.println(getStringFromDocument(doc));
+	doc = alchemyObj.TextGetRankedNamedEntities("Satya Nadella is new Microsoft CEO", entityParams);
+	
+        NodeList nameList = doc.getElementsByTagName("entity");
+        
+        for(int i = 0; i < nameList.getLength(); i++)
+        {
+            Element e_entity = (Element) nameList.item(i);
+            String entityType = e_entity.getElementsByTagName("type").item(0).getTextContent();
+            String entityName = e_entity.getElementsByTagName("text").item(0).getTextContent();
+            NodeList sentiInfo = e_entity.getElementsByTagName("sentiment");
+            Element e_senti = (Element) sentiInfo.item(0);
+            String sentimentName = e_senti.getElementsByTagName("type").item(0).getTextContent();
+            
+            System.out.println("et : " + entityType);
+            System.out.println("en : " + entityName);
+            System.out.println("sn : " + sentimentName);
+        }
+        
+        //System.out.println(getStringFromDocument(doc));
 /*	
 	// Extract keyword-targeted sentiment from a HTML document.
         System.out.println("keyword targetted sentiment");

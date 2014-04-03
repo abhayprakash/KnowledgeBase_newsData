@@ -1,6 +1,7 @@
 package com.alchemyapi.test;
 
 import com.alchemyapi.api.AlchemyAPI;
+import com.alchemyapi.api.AlchemyAPI_NamedEntityParams;
 
 import org.xml.sax.SAXException;
 import org.w3c.dom.Document;
@@ -12,6 +13,8 @@ import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
 class EntityTest {
     public static void main(String[] args)
@@ -26,10 +29,25 @@ class EntityTest {
 //        System.out.println(getStringFromDocument(doc));
         
         // Extract a ranked list of named entities from a text string.
+        AlchemyAPI_NamedEntityParams entityParams = new AlchemyAPI_NamedEntityParams();
+	entityParams.setSentiment(true);
         Document doc = alchemyObj.TextGetRankedNamedEntities(
                 "Hello there, my name is Bob Jones.  I live in the United States of America.  " +
                         "Where do you live, Fred?");
-        System.out.println(getStringFromDocument(doc));
+        NodeList nameList = doc.getElementsByTagName("text");
+        NodeList typeList = doc.getElementsByTagName("type");
+        NodeList sentiList = doc.getElementsByTagName("sentiment");
+        Element ee = (Element) sentiList.item(0);
+        //System.out.println(ee.toString());
+        //NodeList sentiType = ee.getElementsByTagName("type");
+        for(int i = 0; i < nameList.getLength(); i++)
+        {
+            System.out.println("n " + nameList.item(i).getTextContent());
+            System.out.println("t " + typeList.item(i).getTextContent());
+            //System.out.println("s " + sentiType.item(0).getTextContent());
+        }
+
+//System.out.println(getStringFromDocument(doc));
         //System.out.println(doc.toString());
         
         // Load a HTML document to analyze.

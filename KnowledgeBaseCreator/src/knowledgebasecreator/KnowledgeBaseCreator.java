@@ -7,6 +7,8 @@
 package knowledgebasecreator;
 
 import com.alchemyapi.api.AlchemyAPI;
+import com.alchemyapi.api.AlchemyAPI_NamedEntityParams;
+import com.alchemyapi.api.AlchemyAPI_RelationParams;
 import com.mysql.jdbc.Connection;
 import com.mysql.jdbc.Statement;
 import edu.stanford.nlp.dcoref.CorefChain;
@@ -83,17 +85,17 @@ public class KnowledgeBaseCreator {
     {
         OCCURED_TOGETHER,
         CONCEPT_FALLS_IN,
-        APPEARED_IN, 
+        APPEARED_IN,
         PUBLISHED_BY,
         ASSOCIATED_WITH
     }
     
     static AlchemyAPI alchemyObj;// = AlchemyAPI.GetInstanceFromFile("E:\\Projects\\NewsData\\KnowledgeBase\\KnowledgeBaseCreator\\src\\AlchemyAPI_Java-0.8\\testdir\\api_key.txt");
-     
+    
     static HashMap<String, Node > nodeIndex = new HashMap <>(); // this will be used for any type of node
     
     //TODO
-    //static HashMap<Node, HashMap<Node, Relationship>> relTable = new HashMap<>();    
+    //static HashMap<Node, HashMap<Node, Relationship>> relTable = new HashMap<>();
     
     static void DebMsg(String id, String msg)
     {
@@ -129,7 +131,7 @@ public class KnowledgeBaseCreator {
         String query;
         query = "SELECT newsHeadline, start_time_stamp, source_id FROM global_information_repository";
         ResultSet rs = stmt.executeQuery(query);
-               
+        
         while(rs.next()){
             String headline  = rs.getString("newsHeadline");
             String timeOfNews = rs.getString("start_time_stamp");
@@ -146,12 +148,12 @@ public class KnowledgeBaseCreator {
             Node entityNode, prevNode, newsNode, conceptNode, topicNode = null, publisherNode;
             Relationship relationship;
             Label label;
-                    
+            
             // creating News Node
             label = DynamicLabel.label("newsNode");
             newsNode = graphDb.createNode(label);   // assuming news Headline will not repeat
             newsNode.setProperty("headline", headline);
-            newsNode.setProperty("dateShown", date.toString());
+            newsNode.setProperty("date", date.toString());
             
             // creating or getting Topic Node(s)
             Document topicInfo = alchemyObj.TextGetCategory(headline);
@@ -161,7 +163,7 @@ public class KnowledgeBaseCreator {
             {
                 if(nodeIndex.containsKey(likelyTopic))
                 {
-                    topicNode = nodeIndex.get(likelyTopic); 
+                    topicNode = nodeIndex.get(likelyTopic);
                 }
                 else
                 {
@@ -175,7 +177,7 @@ public class KnowledgeBaseCreator {
             label = DynamicLabel.label("Concept");
             Document conceptInfo = alchemyObj.TextGetRankedConcepts(headline);
             NodeList concepts = conceptInfo.getElementsByTagName("concept");
-            List<Node> conceptNodeList = new ArrayList<>(); 
+            List<Node> conceptNodeList = new ArrayList<>();
             for(int i = 0; i < concepts.getLength(); i++)
             {
                 Element it_concept = (Element) concepts.item(i);
@@ -187,13 +189,13 @@ public class KnowledgeBaseCreator {
                     conceptNode = graphDb.createNode(label);
                     conceptNode.setProperty("name", conceptName);
                 }
-
+                
                 // creating relationship CONCEPT_FALLS_IN
                 if(!likelyTopic.equals("unknown"))
                 {
                     relationship = conceptNode.createRelationshipTo( topicNode, RelTypes.CONCEPT_FALLS_IN );
                 }
-                conceptNodeList.add(conceptNode); 
+                conceptNodeList.add(conceptNode);
             }
             
             // creating or getting Publisher Node
@@ -201,23 +203,66 @@ public class KnowledgeBaseCreator {
             publisherNode = graphDb.createNode(label);
             publisherNode.setProperty("id", publisherId);
             
+            
+            // getting subject, object, relation among them and sentiment
+            String Subject = "", Object = "", sentimentFromSubject = "neutral", action = "";
+            AlchemyAPI_RelationParams relationParams = new AlchemyAPI_RelationParams();
+            relationParams.setSentiment(true);
+            relationParams.setRequireEntities(true);
+            relationParams.setSentimentExcludeEntities(true);
+            Document relationInfo = alchemyObj.TextGetRelations(headline, relationParams);
+            
+            Element relation1 = (Element)relationInfo.getElementsByTagName("relations").item(0);
+            Element ele_nl;
+//taking only one relation
+            try{
+                ele_nl = (Element)relation1.getElementsByTagName("subject").item(0);
+                Subject = ele_nl.getElementsByTagName("text").item(0).getTextContent();
+            }catch(Exception e)
+            {
+                
+            }
+            try{
+                ele_nl = (Element)relation1.getElementsByTagName("object").item(0);
+                Object = ele_nl.getElementsByTagName("text").item(0).getTextContent();
+                try{
+                    ele_nl = (Element)ele_nl.getElementsByTagName("sentimentFromSubject").item(0);
+                    sentimentFromSubject = ele_nl.getElementsByTagName("type").item(0).getTextContent();
+                }catch(Exception e)
+                {
+
+                }
+            }catch(Exception e)
+            {
+                
+            }
+            try{
+                ele_nl = (Element)relation1.getElementsByTagName("action").item(0);
+                action = ele_nl.getElementsByTagName("lemmatized").item(0).getTextContent();
+            }catch(Exception e)
+            {
+                
+            }
+            
             // creating entity nodes
-            List<List<String>> entities = getEntities_AndTypes(headline);
+            List<List<String>> entities = getEntities_AndTypes_AndSentiment(headline);
             for(int i = 0; i < entities.size(); i++)
             {
-                String entityName = entities.get(0).get(i); 
+                String entityName = entities.get(0).get(i);
                 String entityType = entities.get(1).get(i);
+                String entitySentiment = entities.get(2).get(i);
                 //insert in neo4j
                 try(Transaction tx = graphDb.beginTx())
                 {
                     if(!nodeIndex.containsKey(entityName))
-                    {   
+                    {
                         label = DynamicLabel.label("Entity");
                         entityNode = graphDb.createNode(label);
-                        entityNode.setProperty("type", entityType); 
+                        entityNode.setProperty("type", entityType);
                         entityNode.setProperty("name", entityName);
+                        entityNode.setProperty("generalSentimentOfSociety", entitySentiment);
                         nodeIndex.put(entityName, entityNode);
-                    
+                        
                         entityNode.setProperty("noOfTimesAppeared", 0);
                         entityNode.setProperty("daysInLongestStreak", 1);
                         entityNode.setProperty("currentStreak", 1);
@@ -226,7 +271,10 @@ public class KnowledgeBaseCreator {
                     else
                     {
                         entityNode = nodeIndex.get(entityName);
-                        entityNode.setProperty("type", entityType); // for the case if this was created due to being concept
+                        // for the case if this was created due to being concept
+                        entityNode.setProperty("type", entityType);
+                        entityNode.setProperty("generalSentimentOfSociety", entitySentiment);
+                        
                         Integer newCount = Integer.parseInt((String) entityNode.getProperty("noOfTimesAppeared")) + 1;
                         entityNode.setProperty("noOfTimesAppeared", newCount);
                         
@@ -260,12 +308,12 @@ public class KnowledgeBaseCreator {
                     
                     // creating entity to publisher node
                     relationship = entityNode.createRelationshipTo(publisherNode, RelTypes.PUBLISHED_BY);
-/**TODO : maintain count - right now keeping just last one**/
+                    /**TODO : maintain count - right now keeping just last one**/
                     relationship.setProperty("sentiment", newsSentiment);
                     
                     
                     // creating entity to concept node
-/**TODO : maintain count - right now just the last one**/
+                    /**TODO : maintain count - right now just the last one**/
                     Node it_conceptNode;
                     for(int conceptList_i = 0; conceptList_i < conceptNodeList.size(); conceptList_i++)
                     {
@@ -276,13 +324,16 @@ public class KnowledgeBaseCreator {
                     // creating Entity-->Entity OCCURED_TOGETHER relation
                     for(int j = 0; j < i; j++)
                     {
-                        prevNode = nodeIndex.get(entities.get(j));
-                        relationship = entityNode.createRelationshipTo( prevNode, RelTypes.OCCURED_TOGETHER );
-/**TODO : maintain count of sentiments - right now keeping the last one**/
-                        
+                        String prevEntityName = entities.get(0).get(j);
+                        prevNode = nodeIndex.get(prevEntityName);
                         relationship = prevNode.createRelationshipTo( entityNode, RelTypes.OCCURED_TOGETHER );
-/**TODO : maintain count of sentiments - right now keeping the last one**/
-                        
+                        relationship.setProperty("date",date);
+                        relationship.setProperty("sentiment",newsSentiment); // general sentiment of news
+                        if(Subject.contains(prevEntityName) && Object.contains(entityName)) 
+                        {
+                            relationship.setProperty("action",action);
+                            relationship.setProperty("sentiment",sentimentFromSubject);                        
+                        }
                     }
                     // Database operations go here
                     tx.success();
@@ -306,22 +357,28 @@ public class KnowledgeBaseCreator {
         } );
     }
     
-    static List<List<String>> getEntities_AndTypes(String s) throws IOException, SAXException, ParserConfigurationException, XPathExpressionException
+    static List<List<String>> getEntities_AndTypes_AndSentiment(String s) throws IOException, SAXException, ParserConfigurationException, XPathExpressionException
     {
         List<List<String>> toret = new Vector<>();
         
         toret.add(new ArrayList<String>());
         toret.add(new ArrayList<String>());
+        toret.add(new ArrayList<String>());
         
-        Document doc = alchemyObj.TextGetRankedNamedEntities(s);
+        AlchemyAPI_NamedEntityParams entityParams = new AlchemyAPI_NamedEntityParams();
+        entityParams.setSentiment(true);
+        Document doc = alchemyObj.TextGetRankedNamedEntities("Satya Nadella is new Microsoft CEO", entityParams);
         
-        NodeList nameList = doc.getElementsByTagName("text");
-        NodeList typeList = doc.getElementsByTagName("type");
+        NodeList nameList = doc.getElementsByTagName("entity");
         
         for(int i = 0; i < nameList.getLength(); i++)
         {
-            toret.get(0).add(nameList.item(i).getTextContent());
-            toret.get(1).add(typeList.item(i).getTextContent());
+            Element e_entity = (Element) nameList.item(i);
+            toret.get(0).add(e_entity.getElementsByTagName("text").item(0).getTextContent());
+            toret.get(1).add(e_entity.getElementsByTagName("type").item(0).getTextContent());
+            NodeList sentiInfo = e_entity.getElementsByTagName("sentiment");
+            Element e_senti = (Element) sentiInfo.item(0);
+            toret.get(2).add(e_senti.getElementsByTagName("type").item(0).getTextContent());
         }
         
         return toret;
