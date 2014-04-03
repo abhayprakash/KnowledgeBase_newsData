@@ -255,12 +255,9 @@ public class KnowledgeBaseCreator {
                     String entityType = entities.get(1).get(i);
                     String entitySentiment = entities.get(2).get(i);
                     
-                    // BUG BELOW IT
-                    System.out.println("en :: " + entityName);
                     //insert in neo4j
                     if(!nodeIndex.containsKey(entityName))
                     {
-                        //System.out.println("DEBUG : HERE if");
                         label = DynamicLabel.label("Entity");
                         entityNode = graphDb.createNode(label);
                         entityNode.setProperty("type", entityType);
@@ -273,11 +270,9 @@ public class KnowledgeBaseCreator {
                         entityNode.setProperty("daysInLongestStreak", 1);
                         entityNode.setProperty("currentStreak", 1);
                         entityNode.setProperty("endDayOfLongestStreak", dateString); // our purpose is basically to capture new appearance of entity so taking just start
-                        //System.out.println("HERE if END");
                     }
                     else
                     {
-                        // BUG BELOW IT
                         entityNode = nodeIndex.get(entityName);
                         // for the case if this was created due to being concept
                         try{
@@ -293,19 +288,12 @@ public class KnowledgeBaseCreator {
                             entityNode.setProperty("endDayOfLongestStreak", dateString); // our purpose is basically to capture new appearance of entity so taking just start
                         }
                         
-                        // BUG BELOW IT
-                        System.out.println("DEBUG HERE");    
                         Integer newCount = Integer.parseInt(entityNode.getProperty("noOfTimesAppeared").toString()) + 1;
                         entityNode.setProperty("noOfTimesAppeared", newCount.toString());
                         
                         String lastDate = entityNode.getProperty("endDayOfLongestStreak").toString();
                         
-                        //System.out.println("DEBUG : HERE else");
-                    
-                        
                         entityNode.setProperty("endDayOfLongestStreak", dateString);
-                        
-                        // BUG ABOVE IT
                         
                         if(ft.parse(dateString).getTime() - ft.parse(lastDate).getTime() == (24 * 60 * 60 * 1000))
                         {
@@ -323,9 +311,6 @@ public class KnowledgeBaseCreator {
                         }
                     }
                     
-                    // BUG ABOVE IT
-                    
-                    //System.out.println("r e n");
                     Document newsSentimentInfo = alchemyObj.TextGetTextSentiment(headline);
                     NodeList nl = newsSentimentInfo.getElementsByTagName("docSentiment");
                     Element eElement = (Element) nl.item(0);
@@ -343,13 +328,11 @@ public class KnowledgeBaseCreator {
                     relationship.setProperty("date", dateString);
                     relationship.setProperty("sentiment",newsSentiment);
                     
-                    //System.out.println("r e p");
                     // creating relationship entity to publisher node
                     relationship = entityNode.createRelationshipTo(publisherNode, RelTypes.PUBLISHED_BY);
                     /**TODO : maintain count - right now keeping just last one**/
                     relationship.setProperty("sentiment", newsSentiment);
                     
-                    //System.out.println("r e c");
                     // creating relationship entity to concept node
                     /**TODO : maintain count - right now just the last one**/
                     Node it_conceptNode;
@@ -359,7 +342,6 @@ public class KnowledgeBaseCreator {
                         relationship = entityNode.createRelationshipTo(it_conceptNode, RelTypes.ASSOCIATED_WITH);
                     }
                     
-                    //System.out.println("r e e");
                     // creating Entity-->Entity OCCURED_TOGETHER relation
                     for(int j = 0; j < i; j++)
                     {
@@ -374,7 +356,6 @@ public class KnowledgeBaseCreator {
                             relationship.setProperty("sentiment",sentimentFromSubject);
                         }
                     }
-                    //System.out.println("end");
                 }
                 // Database operations go here
                 tx.success();
