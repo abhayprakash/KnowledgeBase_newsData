@@ -247,19 +247,23 @@ public class KnowledgeBaseCreator {
                 
                 // creating entity nodes
                 List<List<String>> entities = getEntities_AndTypes_AndSentiment(headline);
-                for(int i = 0; i < entities.size(); i++)
+                for(int i = 0; i < entities.get(0).size(); i++)
                 {
                     String entityName = entities.get(0).get(i);
                     String entityType = entities.get(1).get(i);
                     String entitySentiment = entities.get(2).get(i);
-                        
+                    
+                    // BUG BELOW IT
+                    
                     //insert in neo4j
                     if(!nodeIndex.containsKey(entityName))
                     {
+                        //System.out.println("DEBUG : HERE if");
                         label = DynamicLabel.label("Entity");
                         entityNode = graphDb.createNode(label);
                         entityNode.setProperty("type", entityType);
                         entityNode.setProperty("name", entityName);
+                        
                         entityNode.setProperty("generalSentimentOfSociety", entitySentiment);
                         nodeIndex.put(entityName, entityNode);
                         
@@ -267,18 +271,30 @@ public class KnowledgeBaseCreator {
                         entityNode.setProperty("daysInLongestStreak", 1);
                         entityNode.setProperty("currentStreak", 1);
                         entityNode.setProperty("endDayOfLongestStreak", dateString); // our purpose is basically to capture new appearance of entity so taking just start
+                        //System.out.println("HERE if END");
                     }
                     else
                     {
+                        // BUG BELOW IT
+                        
                         entityNode = nodeIndex.get(entityName);
                         // for the case if this was created due to being concept
                         entityNode.setProperty("type", entityType);
                         entityNode.setProperty("generalSentimentOfSociety", entitySentiment);
+                        
+                        // BUG BELOW IT
+                        
                         Integer newCount = Integer.parseInt(entityNode.getProperty("noOfTimesAppeared").toString()) + 1;
                         entityNode.setProperty("noOfTimesAppeared", newCount.toString());
                         
                         String lastDate = entityNode.getProperty("endDayOfLongestStreak").toString();
+                        
+                        //System.out.println("DEBUG : HERE else");
+                    
+                        
                         entityNode.setProperty("endDayOfLongestStreak", dateString);
+                        
+                        // BUG ABOVE IT
                         
                         if(ft.parse(dateString).getTime() - ft.parse(lastDate).getTime() == (24 * 60 * 60 * 1000))
                         {
@@ -296,6 +312,9 @@ public class KnowledgeBaseCreator {
                         }
                     }
                     
+                    // BUG ABOVE IT
+                    
+                    //System.out.println("r e n");
                     // creating relationship between entity and newsNode
                     relationship = entityNode.createRelationshipTo(newsNode, RelTypes.APPEARED_IN);
                     relationship.setProperty("date", dateString);
@@ -305,13 +324,14 @@ public class KnowledgeBaseCreator {
                     String newsSentiment = eElement.getElementsByTagName("type").item(0).getTextContent();
                     relationship.setProperty("sentiment",newsSentiment);
                     
-                    // creating entity to publisher node
+                    //System.out.println("r e p");
+                    // creating relationship entity to publisher node
                     relationship = entityNode.createRelationshipTo(publisherNode, RelTypes.PUBLISHED_BY);
                     /**TODO : maintain count - right now keeping just last one**/
                     relationship.setProperty("sentiment", newsSentiment);
                     
-                    
-                    // creating entity to concept node
+                    //System.out.println("r e c");
+                    // creating relationship entity to concept node
                     /**TODO : maintain count - right now just the last one**/
                     Node it_conceptNode;
                     for(int conceptList_i = 0; conceptList_i < conceptNodeList.size(); conceptList_i++)
@@ -320,6 +340,7 @@ public class KnowledgeBaseCreator {
                         relationship = entityNode.createRelationshipTo(it_conceptNode, RelTypes.ASSOCIATED_WITH);
                     }
                     
+                    //System.out.println("r e e");
                     // creating Entity-->Entity OCCURED_TOGETHER relation
                     for(int j = 0; j < i; j++)
                     {
@@ -334,6 +355,7 @@ public class KnowledgeBaseCreator {
                             relationship.setProperty("sentiment",sentimentFromSubject);
                         }
                     }
+                    //System.out.println("end");
                 }
                 // Database operations go here
                 tx.success();
@@ -366,7 +388,7 @@ public class KnowledgeBaseCreator {
         
         AlchemyAPI_NamedEntityParams entityParams = new AlchemyAPI_NamedEntityParams();
         entityParams.setSentiment(true);
-        Document doc = alchemyObj.TextGetRankedNamedEntities("Satya Nadella is new Microsoft CEO", entityParams);
+        Document doc = alchemyObj.TextGetRankedNamedEntities(s, entityParams);
         
         NodeList nameList = doc.getElementsByTagName("entity");
         
