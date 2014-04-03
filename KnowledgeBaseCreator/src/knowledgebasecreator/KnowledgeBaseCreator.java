@@ -92,7 +92,7 @@ public class KnowledgeBaseCreator {
     
     static AlchemyAPI alchemyObj;// = AlchemyAPI.GetInstanceFromFile("E:\\Projects\\NewsData\\KnowledgeBase\\KnowledgeBaseCreator\\src\\AlchemyAPI_Java-0.8\\testdir\\api_key.txt");
     
-    static HashMap<String, Node> nodeIndex = new HashMap <>(); // this will be used for any type of node 
+    static HashMap<String, Node> nodeIndex = new HashMap <>(); // this will be used for any type of node
     
     //TODO
     //static HashMap<Node, HashMap<Node, Relationship>> relTable = new HashMap<>();
@@ -247,6 +247,19 @@ public class KnowledgeBaseCreator {
                     
                 }
                 
+                Document newsSentimentInfo = alchemyObj.TextGetTextSentiment(headline);
+                NodeList nl = newsSentimentInfo.getElementsByTagName("docSentiment");
+                Element eElement = (Element) nl.item(0);
+                String newsSentiment = eElement.getElementsByTagName("type").item(0).getTextContent();
+                
+                // creating News Node
+                label = DynamicLabel.label("newsNode");
+                newsNode = graphDb.createNode(label);   // assuming news Headline will not repeat
+                newsNode.setProperty("headline", headline);
+                newsNode.setProperty("date", dateString);
+                newsNode.setProperty("sentiment", newsSentiment);
+                
+                
                 // creating entity nodes
                 List<List<String>> entities = getEntities_AndTypes_AndSentiment(headline);
                 for(int i = 0; i < entities.get(0).size(); i++)
@@ -310,18 +323,6 @@ public class KnowledgeBaseCreator {
                             entityNode.setProperty("currentStreak", 1);
                         }
                     }
-                    
-                    Document newsSentimentInfo = alchemyObj.TextGetTextSentiment(headline);
-                    NodeList nl = newsSentimentInfo.getElementsByTagName("docSentiment");
-                    Element eElement = (Element) nl.item(0);
-                    String newsSentiment = eElement.getElementsByTagName("type").item(0).getTextContent();
-                    
-                    // creating News Node
-                    label = DynamicLabel.label("newsNode");
-                    newsNode = graphDb.createNode(label);   // assuming news Headline will not repeat
-                    newsNode.setProperty("headline", headline);
-                    newsNode.setProperty("date", dateString);
-                    newsNode.setProperty("sentiment", newsSentiment);
                     
                     // creating relationship between entity and newsNode
                     relationship = entityNode.createRelationshipTo(newsNode, RelTypes.APPEARED_IN);
