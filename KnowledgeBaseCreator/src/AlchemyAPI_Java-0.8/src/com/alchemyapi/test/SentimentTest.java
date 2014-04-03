@@ -13,42 +13,54 @@ import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
 class SentimentTest {
     public static void main(String[] args) throws IOException, SAXException,
             ParserConfigurationException, XPathExpressionException {
         // Create an AlchemyAPI object.
-        AlchemyAPI alchemyObj = AlchemyAPI.GetInstanceFromFile("/home/bcard/key/api_key.txt");
-
+        AlchemyAPI alchemyObj = AlchemyAPI.GetInstanceFromFile("E:\\Projects\\NewsData\\KnowledgeBase\\KnowledgeBaseCreator\\src\\AlchemyAPI_Java-0.8\\testdir\\api_key.txt");
+/*
         // Extract sentiment for a web URL.
         Document doc = alchemyObj.URLGetTextSentiment("http://www.techcrunch.com/");
         System.out.println(getStringFromDocument(doc));
-
+*/
         // Extract sentiment for a text string.
-        doc = alchemyObj.TextGetTextSentiment(
-            "That hat is ridiculous, Charles.");
+        Document doc = alchemyObj.TextGetTextSentiment(
+            "Modi says Rahul is awesome");
+        
+        NodeList nl = doc.getElementsByTagName("docSentiment");
+        Element eElement = (Element) nl.item(0);
+        
+        System.out.println(eElement.getElementsByTagName("type").item(0).getTextContent());
+        
+        System.out.println("Document sentiment");
         System.out.println(getStringFromDocument(doc));
-
+/*
         // Load a HTML document to analyze.
         String htmlDoc = getFileContents("/home/bcard/data/example.html");
 
         // Extract sentiment for a HTML document.
         doc = alchemyObj.HTMLGetTextSentiment(htmlDoc, "http://www.test.com/");
 	System.out.println(getStringFromDocument(doc));
-	
-	// Extract entity-targeted sentiment from a HTML document.	
+*/	
+	// Extract entity-targeted sentiment from a HTML document.
+        System.out.println("entity targetted sentiment");
 	AlchemyAPI_NamedEntityParams entityParams = new AlchemyAPI_NamedEntityParams();
 	entityParams.setSentiment(true);
-	doc = alchemyObj.TextGetRankedNamedEntities("That Mike Tyson is such a sweetheart.", entityParams);
+	doc = alchemyObj.TextGetRankedNamedEntities("Modi says Rahul is awesome", entityParams);
 	System.out.println(getStringFromDocument(doc));
-	
-	// Extract keyword-targeted sentiment from a HTML document.	
+/*	
+	// Extract keyword-targeted sentiment from a HTML document.
+        System.out.println("keyword targetted sentiment");
 	AlchemyAPI_KeywordParams keywordParams = new AlchemyAPI_KeywordParams();
 	keywordParams.setSentiment(true);
 	doc = alchemyObj.TextGetRankedKeywords("That Mike Tyson is such a sweetheart.", keywordParams);
 	System.out.println(getStringFromDocument(doc));
-        
+/*        
 	//Extract Targeted Sentiment from text
+        System.out.println("targetted sentiment");
 	AlchemyAPI_TargetedSentimentParams sentimentParams = new AlchemyAPI_TargetedSentimentParams();
 	sentimentParams.setShowSourceText(true);
 	doc = alchemyObj.TextGetTargetedSentiment("This car is terrible.", "car", sentimentParams);
@@ -61,7 +73,8 @@ class SentimentTest {
 	//Extract Targeted Sentiment from html
 	doc = alchemyObj.HTMLGetTargetedSentiment(htmlDoc, "http://www.test.com/", "WujWuj", sentimentParams);
 	System.out.print(getStringFromDocument(doc));
-}
+*/
+    }
 
     // utility function
     private static String getFileContents(String filename)

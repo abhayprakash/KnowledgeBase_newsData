@@ -81,7 +81,11 @@ public class KnowledgeBaseCreator {
     
     private static enum RelTypes implements RelationshipType
     {
-        OCCURED_TOGETHER
+        OCCURED_TOGETHER,
+        CONCEPT_FALLS_IN,
+        APPEARED_IN, 
+        PUBLISHED_BY,
+        ASSOCIATED_WITH
     }
     
     static AlchemyAPI alchemyObj;// = AlchemyAPI.GetInstanceFromFile("E:\\Projects\\NewsData\\KnowledgeBase\\KnowledgeBaseCreator\\src\\AlchemyAPI_Java-0.8\\testdir\\api_key.txt");
@@ -137,7 +141,7 @@ public class KnowledgeBaseCreator {
             Date date = ft.parse(dateAndTime[0]);
             
             // Common Variables
-            Node entityNode, prevNode, newsNode, conceptNode, topicNode, publisherNode;
+            Node entityNode, prevNode, newsNode, conceptNode, topicNode = null, publisherNode;
             Relationship relationship;
             Label label;
                     
@@ -175,6 +179,11 @@ public class KnowledgeBaseCreator {
                 Element it_concept = (Element) concepts.item(i);
                 conceptNode = graphDb.createNode(label);
                 conceptNode.setProperty("name", it_concept.getElementsByTagName("text").item(0).getTextContent());
+                // creating relationship CONCEPT_FALLS_IN
+                if(!likelyTopic.equals("unknown"))
+                {
+                    relationship = conceptNode.createRelationshipTo( topicNode, RelTypes.CONCEPT_FALLS_IN );
+                }
                 conceptNodeList.add(conceptNode); 
             }
             
@@ -192,7 +201,6 @@ public class KnowledgeBaseCreator {
                 //insert in neo4j
                 try(Transaction tx = graphDb.beginTx())
                 {
-                    // creating entity node
                     if(!nodeIndex.containsKey(entityName))
                     {   
                         label = DynamicLabel.label("Entity");
@@ -231,6 +239,15 @@ public class KnowledgeBaseCreator {
                         }
                     }
                     
+                    // creating relationship between entity and newsNode
+                    relationship = entityNode.createRelationshipTo(newsNode, RelTypes.APPEARED_IN);
+                    relationship.setProperty("date", date);
+                    Document newsSentimentInfo = alchemyObj.TextGetTextSentiment(headline);
+                    NodeList nl = newsSentimentInfo.getElementsByTagName("docSentiment");
+                    Element eElement = (Element) nl.item(0);
+                    relationship.setProperty("sentiment",eElement.getElementsByTagName("type").item(0).getTextContent());
+                    
+                    // creating Entity-->Entity OCCURED_TOGETHER relation
                     for(int j = 0; j < i; j++)
                     {
                         prevNode = nodeIndex.get(entities.get(j));
