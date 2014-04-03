@@ -199,6 +199,8 @@ public class KnowledgeBaseCreator {
                     conceptNodeList.add(conceptNode);
                 }
                 
+                //CHECKED TILL HERE
+                
                 // creating or getting Publisher Node
                 label = DynamicLabel.label("Publisher");
                 publisherNode = graphDb.createNode(label);
@@ -245,6 +247,10 @@ public class KnowledgeBaseCreator {
                     
                 }
                 
+                
+                // CHECKED TILL HERE
+                
+                
                 // creating entity nodes
                 List<List<String>> entities = getEntities_AndTypes_AndSentiment(headline);
                 for(int i = 0; i < entities.size(); i++)
@@ -265,7 +271,7 @@ public class KnowledgeBaseCreator {
                         entityNode.setProperty("noOfTimesAppeared", 0);
                         entityNode.setProperty("daysInLongestStreak", 1);
                         entityNode.setProperty("currentStreak", 1);
-                        entityNode.setProperty("endDayOfLongestStreak", date); // our purpose is basically to capture new appearance of entity so taking just start
+                        entityNode.setProperty("endDayOfLongestStreak", date.toString()); // our purpose is basically to capture new appearance of entity so taking just start
                     }
                     else
                     {
@@ -278,7 +284,7 @@ public class KnowledgeBaseCreator {
                         entityNode.setProperty("noOfTimesAppeared", newCount);
                         
                         Date lastDate = (Date) entityNode.getProperty("endDayOfLongestStreak");
-                        entityNode.setProperty("endDayOfLongestStreak", date);
+                        entityNode.setProperty("endDayOfLongestStreak", date.toString());
                         
                         if(date.getTime() - lastDate.getTime() == (24 * 60 * 60 * 1000))
                         {
@@ -296,9 +302,13 @@ public class KnowledgeBaseCreator {
                         }
                     }
                     
+                    
+                    // BUG ABOVE TO IT
+                    
+                    
                     // creating relationship between entity and newsNode
                     relationship = entityNode.createRelationshipTo(newsNode, RelTypes.APPEARED_IN);
-                    relationship.setProperty("date", date);
+                    relationship.setProperty("date", date.toString());
                     Document newsSentimentInfo = alchemyObj.TextGetTextSentiment(headline);
                     NodeList nl = newsSentimentInfo.getElementsByTagName("docSentiment");
                     Element eElement = (Element) nl.item(0);
@@ -326,7 +336,7 @@ public class KnowledgeBaseCreator {
                         String prevEntityName = entities.get(0).get(j);
                         prevNode = nodeIndex.get(prevEntityName);
                         relationship = prevNode.createRelationshipTo( entityNode, RelTypes.OCCURED_TOGETHER );
-                        relationship.setProperty("date",date);
+                        relationship.setProperty("date",date.toString());
                         relationship.setProperty("sentiment",newsSentiment); // general sentiment of news
                         if(Subject.contains(prevEntityName) && Object.contains(entityName))
                         {
