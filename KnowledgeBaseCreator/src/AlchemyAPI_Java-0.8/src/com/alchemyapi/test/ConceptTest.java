@@ -12,6 +12,8 @@ import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
 class ConceptTest {
     public static void main(String[] args) throws IOException, SAXException,
@@ -27,6 +29,14 @@ class ConceptTest {
         Document doc = alchemyObj.TextGetRankedConcepts(
             "Rahul says Modi s Gujarat govt was involved in 2002 riots");
         System.out.println(getStringFromDocument(doc)); 
+        doc.getDocumentElement().normalize();
+        NodeList ll = doc.getElementsByTagName("concept");
+        for(int i = 0; i < ll.getLength(); i++)
+        {
+            Element el = (Element) ll.item(i);
+            
+            System.out.println(el.getElementsByTagName("text").item(0).getTextContent());
+        }
 /*
         // Load a HTML document to analyze.
         String htmlDoc = getFileContents("data/example.html");

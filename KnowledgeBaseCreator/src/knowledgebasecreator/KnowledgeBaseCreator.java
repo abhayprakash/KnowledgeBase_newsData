@@ -59,6 +59,7 @@ import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.factory.GraphDatabaseFactory;
 import org.neo4j.graphdb.index.Index;
 import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
@@ -84,6 +85,8 @@ public class KnowledgeBaseCreator {
     }
     
     static AlchemyAPI alchemyObj;// = AlchemyAPI.GetInstanceFromFile("E:\\Projects\\NewsData\\KnowledgeBase\\KnowledgeBaseCreator\\src\\AlchemyAPI_Java-0.8\\testdir\\api_key.txt");
+     
+    static HashMap<String, Node > nodeIndex = new HashMap <>(); // this will be used for any type of node
         
     
     static void DebMsg(String id, String msg)
@@ -121,8 +124,6 @@ public class KnowledgeBaseCreator {
         query = "SELECT newsHeadline, start_time_stamp, source_id FROM global_information_repository";
         ResultSet rs = stmt.executeQuery(query);
                
-        HashMap<String, Node > nodeIndex = new HashMap <>(); // this will be used for any type of node
-        
         while(rs.next()){
             String headline  = rs.getString("newsHeadline");
             String timeOfNews = rs.getString("start_time_stamp");
@@ -167,7 +168,15 @@ public class KnowledgeBaseCreator {
             // creating or getting Concept Node(s)
             label = DynamicLabel.label("Concept");
             Document conceptInfo = alchemyObj.TextGetRankedConcepts(headline);
-            
+            NodeList concepts = conceptInfo.getElementsByTagName("concept");
+            List<Node> conceptNodeList = new ArrayList<>(); 
+            for(int i = 0; i < concepts.getLength(); i++)
+            {
+                Element it_concept = (Element) concepts.item(i);
+                conceptNode = graphDb.createNode(label);
+                conceptNode.setProperty("name", it_concept.getElementsByTagName("text").item(0).getTextContent());
+                conceptNodeList.add(conceptNode); 
+            }
             
             // creating or getting Publisher Node
             label = DynamicLabel.label("Publisher");
@@ -186,9 +195,12 @@ public class KnowledgeBaseCreator {
                     // creating entity node
                     if(!nodeIndex.containsKey(entityName))
                     {   
-                        label = DynamicLabel.label(entityType);
+                        label = DynamicLabel.label("Entity");
                         entityNode = graphDb.createNode(label);
+                        entityNode.setProperty("type", entityType); 
                         entityNode.setProperty("name", entityName);
+                        nodeIndex.put(entityName, entityNode);
+                    
                         entityNode.setProperty("noOfTimesAppeared", 0);
                         entityNode.setProperty("daysInLongestStreak", 1);
                         entityNode.setProperty("currentStreak", 1);
@@ -227,7 +239,6 @@ public class KnowledgeBaseCreator {
                         relationship = prevNode.createRelationshipTo( entityNode, RelTypes.OCCURED_TOGETHER );
                         relationship.setProperty( "HeadLine", headline);
                     }
-                    nodeIndex.put(st, entityNode);
                     // Database operations go here
                     tx.success();
                 }
