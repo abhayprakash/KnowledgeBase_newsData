@@ -142,7 +142,7 @@ public class KnowledgeBaseCreator {
             // date of publication
             String[] dateAndTime = timeOfNews.split(" ");
             SimpleDateFormat ft = new SimpleDateFormat ("yyyy-MM-dd");
-            Date date = ft.parse(dateAndTime[0]);
+            String dateString = dateAndTime[0];
             try(Transaction tx = graphDb.beginTx())
             {
                 // Common Variables
@@ -154,7 +154,7 @@ public class KnowledgeBaseCreator {
                 label = DynamicLabel.label("newsNode");
                 newsNode = graphDb.createNode(label);   // assuming news Headline will not repeat
                 newsNode.setProperty("headline", headline);
-                newsNode.setProperty("date", date.toString());
+                newsNode.setProperty("date", dateString);
                 
                 // creating or getting Topic Node(s)
                 Document topicInfo = alchemyObj.TextGetCategory(headline);
@@ -198,8 +198,6 @@ public class KnowledgeBaseCreator {
                     }
                     conceptNodeList.add(conceptNode);
                 }
-                
-                //CHECKED TILL HERE
                 
                 // creating or getting Publisher Node
                 label = DynamicLabel.label("Publisher");
@@ -247,10 +245,6 @@ public class KnowledgeBaseCreator {
                     
                 }
                 
-                
-                // CHECKED TILL HERE
-                
-                
                 // creating entity nodes
                 List<List<String>> entities = getEntities_AndTypes_AndSentiment(headline);
                 for(int i = 0; i < entities.size(); i++)
@@ -258,6 +252,7 @@ public class KnowledgeBaseCreator {
                     String entityName = entities.get(0).get(i);
                     String entityType = entities.get(1).get(i);
                     String entitySentiment = entities.get(2).get(i);
+                        
                     //insert in neo4j
                     if(!nodeIndex.containsKey(entityName))
                     {
@@ -271,7 +266,7 @@ public class KnowledgeBaseCreator {
                         entityNode.setProperty("noOfTimesAppeared", 0);
                         entityNode.setProperty("daysInLongestStreak", 1);
                         entityNode.setProperty("currentStreak", 1);
-                        entityNode.setProperty("endDayOfLongestStreak", date.toString()); // our purpose is basically to capture new appearance of entity so taking just start
+                        entityNode.setProperty("endDayOfLongestStreak", dateString); // our purpose is basically to capture new appearance of entity so taking just start
                     }
                     else
                     {
@@ -279,21 +274,20 @@ public class KnowledgeBaseCreator {
                         // for the case if this was created due to being concept
                         entityNode.setProperty("type", entityType);
                         entityNode.setProperty("generalSentimentOfSociety", entitySentiment);
+                        Integer newCount = Integer.parseInt(entityNode.getProperty("noOfTimesAppeared").toString()) + 1;
+                        entityNode.setProperty("noOfTimesAppeared", newCount.toString());
                         
-                        Integer newCount = Integer.parseInt((String) entityNode.getProperty("noOfTimesAppeared")) + 1;
-                        entityNode.setProperty("noOfTimesAppeared", newCount);
+                        String lastDate = entityNode.getProperty("endDayOfLongestStreak").toString();
+                        entityNode.setProperty("endDayOfLongestStreak", dateString);
                         
-                        Date lastDate = (Date) entityNode.getProperty("endDayOfLongestStreak");
-                        entityNode.setProperty("endDayOfLongestStreak", date.toString());
-                        
-                        if(date.getTime() - lastDate.getTime() == (24 * 60 * 60 * 1000))
+                        if(ft.parse(dateString).getTime() - ft.parse(lastDate).getTime() == (24 * 60 * 60 * 1000))
                         {
                             Integer currentStreak = Integer.parseInt((String)entityNode.getProperty("currentStreak")) + 1;
-                            entityNode.setProperty("currentStreak", currentStreak);
+                            entityNode.setProperty("currentStreak", currentStreak.toString());
                             Integer longestStreak = Integer.parseInt((String)entityNode.getProperty("daysInLongestStreak"));
                             if(currentStreak > longestStreak)
                             {
-                                entityNode.setProperty("daysInLongestStreak", currentStreak);
+                                entityNode.setProperty("daysInLongestStreak", currentStreak.toString());
                             }
                         }
                         else
@@ -302,13 +296,9 @@ public class KnowledgeBaseCreator {
                         }
                     }
                     
-                    
-                    // BUG ABOVE TO IT
-                    
-                    
                     // creating relationship between entity and newsNode
                     relationship = entityNode.createRelationshipTo(newsNode, RelTypes.APPEARED_IN);
-                    relationship.setProperty("date", date.toString());
+                    relationship.setProperty("date", dateString);
                     Document newsSentimentInfo = alchemyObj.TextGetTextSentiment(headline);
                     NodeList nl = newsSentimentInfo.getElementsByTagName("docSentiment");
                     Element eElement = (Element) nl.item(0);
@@ -336,7 +326,7 @@ public class KnowledgeBaseCreator {
                         String prevEntityName = entities.get(0).get(j);
                         prevNode = nodeIndex.get(prevEntityName);
                         relationship = prevNode.createRelationshipTo( entityNode, RelTypes.OCCURED_TOGETHER );
-                        relationship.setProperty("date",date.toString());
+                        relationship.setProperty("date",dateString);
                         relationship.setProperty("sentiment",newsSentiment); // general sentiment of news
                         if(Subject.contains(prevEntityName) && Object.contains(entityName))
                         {
