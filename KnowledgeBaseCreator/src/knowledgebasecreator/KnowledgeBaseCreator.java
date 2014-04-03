@@ -150,12 +150,6 @@ public class KnowledgeBaseCreator {
                 Relationship relationship;
                 Label label;
                 
-                // creating News Node
-                label = DynamicLabel.label("newsNode");
-                newsNode = graphDb.createNode(label);   // assuming news Headline will not repeat
-                newsNode.setProperty("headline", headline);
-                newsNode.setProperty("date", dateString);
-                
                 // creating or getting Topic Node(s)
                 Document topicInfo = alchemyObj.TextGetCategory(headline);
                 NodeList categoryList = topicInfo.getElementsByTagName("category");
@@ -189,11 +183,11 @@ public class KnowledgeBaseCreator {
                     {
                         conceptNode = graphDb.createNode(label);
                         conceptNode.setProperty("name", conceptName);
-                        nodeIndex.put("name", conceptNode);
+                        nodeIndex.put(conceptName, conceptNode);
                     }
                     
                     // creating relationship CONCEPT_FALLS_IN
-                    if(!likelyTopic.equals("unknown"))
+                    if(!likelyTopic.equals("unknown") && !likelyTopic.equals(""))
                     {
                         relationship = conceptNode.createRelationshipTo( topicNode, RelTypes.CONCEPT_FALLS_IN );
                     }
@@ -201,10 +195,17 @@ public class KnowledgeBaseCreator {
                 }
                 
                 // creating or getting Publisher Node
-                label = DynamicLabel.label("Publisher");
-                publisherNode = graphDb.createNode(label);
-                publisherNode.setProperty("id", publisherId);
-                
+                if(!nodeIndex.containsKey(publisherId))
+                {
+                    label = DynamicLabel.label("Publisher");
+                    publisherNode = graphDb.createNode(label);
+                    publisherNode.setProperty("id", publisherId);
+                    nodeIndex.put(publisherId, publisherNode);
+                }
+                else
+                {
+                    publisherNode = nodeIndex.get(publisherId);
+                }
                 
                 // getting subject, object, relation among them and sentiment
                 String Subject = "", Object = "", sentimentFromSubject = "neutral", action = "";
@@ -316,13 +317,21 @@ public class KnowledgeBaseCreator {
                     // BUG ABOVE IT
                     
                     //System.out.println("r e n");
-                    // creating relationship between entity and newsNode
-                    relationship = entityNode.createRelationshipTo(newsNode, RelTypes.APPEARED_IN);
-                    relationship.setProperty("date", dateString);
                     Document newsSentimentInfo = alchemyObj.TextGetTextSentiment(headline);
                     NodeList nl = newsSentimentInfo.getElementsByTagName("docSentiment");
                     Element eElement = (Element) nl.item(0);
                     String newsSentiment = eElement.getElementsByTagName("type").item(0).getTextContent();
+                    
+                    // creating News Node
+                    label = DynamicLabel.label("newsNode");
+                    newsNode = graphDb.createNode(label);   // assuming news Headline will not repeat
+                    newsNode.setProperty("headline", headline);
+                    newsNode.setProperty("date", dateString);
+                    newsNode.setProperty("sentiment", newsSentiment);
+                    
+                    // creating relationship between entity and newsNode
+                    relationship = entityNode.createRelationshipTo(newsNode, RelTypes.APPEARED_IN);
+                    relationship.setProperty("date", dateString);
                     relationship.setProperty("sentiment",newsSentiment);
                     
                     //System.out.println("r e p");
