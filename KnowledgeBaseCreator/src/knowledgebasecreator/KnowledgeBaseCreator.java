@@ -91,7 +91,9 @@ public class KnowledgeBaseCreator {
     static AlchemyAPI alchemyObj;// = AlchemyAPI.GetInstanceFromFile("E:\\Projects\\NewsData\\KnowledgeBase\\KnowledgeBaseCreator\\src\\AlchemyAPI_Java-0.8\\testdir\\api_key.txt");
      
     static HashMap<String, Node > nodeIndex = new HashMap <>(); // this will be used for any type of node
-        
+    
+    //TODO
+    //static HashMap<Node, HashMap<Node, Relationship>> relTable = new HashMap<>();    
     
     static void DebMsg(String id, String msg)
     {
@@ -177,8 +179,15 @@ public class KnowledgeBaseCreator {
             for(int i = 0; i < concepts.getLength(); i++)
             {
                 Element it_concept = (Element) concepts.item(i);
-                conceptNode = graphDb.createNode(label);
-                conceptNode.setProperty("name", it_concept.getElementsByTagName("text").item(0).getTextContent());
+                String conceptName = it_concept.getElementsByTagName("text").item(0).getTextContent();
+                if(nodeIndex.containsKey(conceptName))
+                    conceptNode = nodeIndex.get(conceptName);
+                else
+                {
+                    conceptNode = graphDb.createNode(label);
+                    conceptNode.setProperty("name", conceptName);
+                }
+
                 // creating relationship CONCEPT_FALLS_IN
                 if(!likelyTopic.equals("unknown"))
                 {
@@ -217,6 +226,7 @@ public class KnowledgeBaseCreator {
                     else
                     {
                         entityNode = nodeIndex.get(entityName);
+                        entityNode.setProperty("type", entityType); // for the case if this was created due to being concept
                         Integer newCount = Integer.parseInt((String) entityNode.getProperty("noOfTimesAppeared")) + 1;
                         entityNode.setProperty("noOfTimesAppeared", newCount);
                         
@@ -245,16 +255,34 @@ public class KnowledgeBaseCreator {
                     Document newsSentimentInfo = alchemyObj.TextGetTextSentiment(headline);
                     NodeList nl = newsSentimentInfo.getElementsByTagName("docSentiment");
                     Element eElement = (Element) nl.item(0);
-                    relationship.setProperty("sentiment",eElement.getElementsByTagName("type").item(0).getTextContent());
+                    String newsSentiment = eElement.getElementsByTagName("type").item(0).getTextContent();
+                    relationship.setProperty("sentiment",newsSentiment);
+                    
+                    // creating entity to publisher node
+                    relationship = entityNode.createRelationshipTo(publisherNode, RelTypes.PUBLISHED_BY);
+/**TODO : maintain count - right now keeping just last one**/
+                    relationship.setProperty("sentiment", newsSentiment);
+                    
+                    
+                    // creating entity to concept node
+/**TODO : maintain count - right now just the last one**/
+                    Node it_conceptNode;
+                    for(int conceptList_i = 0; conceptList_i < conceptNodeList.size(); conceptList_i++)
+                    {
+                        it_conceptNode = conceptNodeList.get(conceptList_i);
+                        relationship = entityNode.createRelationshipTo(it_conceptNode, RelTypes.ASSOCIATED_WITH);
+                    }
                     
                     // creating Entity-->Entity OCCURED_TOGETHER relation
                     for(int j = 0; j < i; j++)
                     {
                         prevNode = nodeIndex.get(entities.get(j));
                         relationship = entityNode.createRelationshipTo( prevNode, RelTypes.OCCURED_TOGETHER );
-                        relationship.setProperty( "HeadLine", headline);
+/**TODO : maintain count of sentiments - right now keeping the last one**/
+                        
                         relationship = prevNode.createRelationshipTo( entityNode, RelTypes.OCCURED_TOGETHER );
-                        relationship.setProperty( "HeadLine", headline);
+/**TODO : maintain count of sentiments - right now keeping the last one**/
+                        
                     }
                     // Database operations go here
                     tx.success();
