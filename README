@@ -1,0 +1,28 @@
+The knowledgebase has the discovered knowledge from the news headlines of major Indian News Publishers. NLP has been used to extract the entities, sentiment of news, find some action from one entity towards other entity as "say", "inaugrate" etc., sentiment of relationship from one entity towards its connected entities. Alchemy api has been used to associate an entity to a concept based on the news headline it appeared in. The concepts are further linked to some (broad)topic.
+
+The KB contains nodes of:
+-> entities {Person, Location, Organization and events}
+-> concepts 
+-> topics
+-> publisher
+-> actual headline
+
+Relationships among:
+-> entity to concepts
+-> concept to topic
+-> entity to related entity
+-> entity to newsHeadline
+-> newsheadline to publisher
+-> entity to publisher
+
+The nodes and relationships have properties like sentiment, count of occureance, date of occurance accordingly.
+
+Applications:
+-> To show news based on some proximity of entities.
+-> To get summary, related news/events etc.
+-> To get skewness of a publisher towards a particular entity.
+-> To get generalized human query answers.
+
+To do:
+-> To get cause effect relation among events.
+
