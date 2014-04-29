@@ -107,6 +107,7 @@ public class KnowledgeBaseCreator {
         
         graphDb.shutdown();
     }
+    
     static Node getTopicNode(String headline)
     {
         Node topicNode = null;
@@ -140,6 +141,7 @@ public class KnowledgeBaseCreator {
         }
         return topicNode;
     }
+    
     static List<Node> getConceptNodeList(String headline, Node topicNode)
     {
         List<Node> conceptNodeList = new ArrayList<>();
@@ -162,7 +164,7 @@ public class KnowledgeBaseCreator {
                 }
                 
                 // creating relationship CONCEPT_FALLS_IN
-                if(!topicNode.equals(null))
+                if(topicNode != null)
                 {
                     conceptNode.createRelationshipTo( topicNode, RelTypes.CONCEPT_FALLS_IN );
                 }
