@@ -47,6 +47,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Vector;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.xpath.XPathExpressionException;
 import org.neo4j.cypher.javacompat.ExecutionEngine;
@@ -102,7 +104,12 @@ public class KnowledgeBaseCreator {
         writerDeb.println(id + ": " + msg);
     }
     
+    static class subjObjSentiActionStrings{
+        String Subject, Object, sentimentFromSubject, action, newsSentiment;
+    };
+    
     public static void main(String[] args) throws IOException {
+        
         alchemyObj = AlchemyAPI.GetInstanceFromFile("E:\\Projects\\NewsData\\KnowledgeBase\\KnowledgeBaseCreator\\src\\AlchemyAPI_Java-0.8\\testdir\\api_key.txt");
         writerDeb = new PrintWriter(MachineDep.logFilePath, "UTF-8");
         
@@ -126,6 +133,260 @@ public class KnowledgeBaseCreator {
         
         graphDb.shutdown();
     }
+    static Node getTopicNode(String headline)
+    {
+        Node topicNode = null;
+        Document topicInfo;
+        try {
+            topicInfo = alchemyObj.TextGetCategory(headline);
+            NodeList categoryList = topicInfo.getElementsByTagName("category");
+            String likelyTopic = categoryList.item(0).getTextContent();
+            if(!likelyTopic.equals("unknown") && !likelyTopic.equals(""))
+            {
+                if(nodeIndex.containsKey(likelyTopic))
+                {
+                    topicNode = nodeIndex.get(likelyTopic);
+                }
+                else
+                {
+                    Label label = DynamicLabel.label("Topic");
+                    topicNode = graphDb.createNode(label);
+                    topicNode.setProperty("name", likelyTopic);
+                    nodeIndex.put(likelyTopic, topicNode);
+                }
+            }
+        } catch (IOException ex) {
+            Logger.getLogger(KnowledgeBaseCreator.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (SAXException ex) {
+            Logger.getLogger(KnowledgeBaseCreator.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (ParserConfigurationException ex) {
+            Logger.getLogger(KnowledgeBaseCreator.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (XPathExpressionException ex) {
+            Logger.getLogger(KnowledgeBaseCreator.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return topicNode;
+    }
+    static List<Node> getConceptNodeList(String headline, Node topicNode)
+    {
+        List<Node> conceptNodeList = new ArrayList<>();
+        try {
+            Node conceptNode;
+            Label label = DynamicLabel.label("Concept");
+            Document conceptInfo = alchemyObj.TextGetRankedConcepts(headline);
+            NodeList concepts = conceptInfo.getElementsByTagName("concept");
+            for(int i = 0; i < concepts.getLength(); i++)
+            {
+                Element it_concept = (Element) concepts.item(i);
+                String conceptName = it_concept.getElementsByTagName("text").item(0).getTextContent();
+                if(nodeIndex.containsKey(conceptName))
+                    conceptNode = nodeIndex.get(conceptName);
+                else
+                {
+                    conceptNode = graphDb.createNode(label);
+                    conceptNode.setProperty("name", conceptName);
+                    nodeIndex.put(conceptName, conceptNode);
+                }
+                
+                // creating relationship CONCEPT_FALLS_IN
+                if(!topicNode.equals(null))
+                {
+                    conceptNode.createRelationshipTo( topicNode, RelTypes.CONCEPT_FALLS_IN );
+                }
+                conceptNodeList.add(conceptNode);
+            }
+        } catch (IOException ex) {
+            Logger.getLogger(KnowledgeBaseCreator.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (SAXException ex) {
+            Logger.getLogger(KnowledgeBaseCreator.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (ParserConfigurationException ex) {
+            Logger.getLogger(KnowledgeBaseCreator.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (XPathExpressionException ex) {
+            Logger.getLogger(KnowledgeBaseCreator.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return conceptNodeList;
+    }
+    
+    static Node getPublisherNode(String publisherId)
+    {
+        Node publisherNode;
+        if(!nodeIndex.containsKey(publisherId))
+        {
+            Label label = DynamicLabel.label("Publisher");
+            publisherNode = graphDb.createNode(label);
+            publisherNode.setProperty("id", publisherId);
+            nodeIndex.put(publisherId, publisherNode);
+        }
+        else
+        {
+            publisherNode = nodeIndex.get(publisherId);
+        }
+        return publisherNode;
+    }
+    
+    static Node getNewsNode(String headline, String dateString, String newsSentiment)
+    {
+        Node newsNode;
+        Label label = DynamicLabel.label("newsNode");
+        newsNode = graphDb.createNode(label);   // assuming news Headline will not repeat
+        newsNode.setProperty("headline", headline);
+        newsNode.setProperty("date", dateString);
+        newsNode.setProperty("sentiment", newsSentiment);
+        return newsNode;
+    }
+    
+    static void createAndInsertEntities(String headline, Node newsNode, String dateString, Node publisherNode, List<Node> conceptNodeList, subjObjSentiActionStrings structure)
+    {
+        SimpleDateFormat ft = new SimpleDateFormat ("yyyy-MM-dd");
+        try {
+            List<List<String>> entities = getEntities_AndTypes_AndSentiment(headline);
+            for(int i = 0; i < entities.get(0).size(); i++)
+            {
+                String entityName = entities.get(0).get(i);
+                String entityType = entities.get(1).get(i);
+                String entitySentiment = entities.get(2).get(i);
+                
+                Node entityNode = null;
+                //insert in neo4j
+                if(!nodeIndex.containsKey(entityName))
+                {
+                    Label label = DynamicLabel.label("Entity");
+                    entityNode = graphDb.createNode(label);
+                    entityNode.setProperty("type", entityType);
+                    entityNode.setProperty("name", entityName);
+                    
+                    entityNode.setProperty("generalSentimentOfSociety", entitySentiment);
+                    nodeIndex.put(entityName, entityNode);
+                    
+                    entityNode.setProperty("noOfTimesAppeared", 1);
+                    entityNode.setProperty("daysInLongestStreak", 1);
+                    entityNode.setProperty("currentStreak", 1);
+                    entityNode.setProperty("endDayOfLongestStreak", dateString); // our purpose is basically to capture new appearance of entity so taking just start
+                }
+                else
+                {
+                    entityNode = nodeIndex.get(entityName);
+                    // for the case if this was created due to being concept
+                    try{
+                        entityNode.getProperty("noOfTimesAppeared");
+                    }
+                    catch(Exception ex)
+                    {
+                        entityNode.setProperty("type", entityType);
+                        entityNode.setProperty("generalSentimentOfSociety", entitySentiment);
+                        entityNode.setProperty("noOfTimesAppeared", 0);
+                        entityNode.setProperty("daysInLongestStreak", 1);
+                        entityNode.setProperty("currentStreak", 1);
+                        entityNode.setProperty("endDayOfLongestStreak", dateString); // our purpose is basically to capture new appearance of entity so taking just start
+                    }
+                    
+                    Integer newCount = Integer.parseInt(entityNode.getProperty("noOfTimesAppeared").toString()) + 1;
+                    entityNode.setProperty("noOfTimesAppeared", newCount.toString());
+                    
+                    String lastDate = entityNode.getProperty("endDayOfLongestStreak").toString();
+                    
+                    entityNode.setProperty("endDayOfLongestStreak", dateString);
+                    try {
+                        if(ft.parse(dateString).getTime() - ft.parse(lastDate).getTime() == (24 * 60 * 60 * 1000))
+                        {
+                            Integer currentStreak = Integer.parseInt((String)entityNode.getProperty("currentStreak")) + 1;
+                            entityNode.setProperty("currentStreak", currentStreak.toString());
+                            Integer longestStreak = Integer.parseInt((String)entityNode.getProperty("daysInLongestStreak"));
+                            if(currentStreak > longestStreak)
+                            {
+                                entityNode.setProperty("daysInLongestStreak", currentStreak.toString());
+                            }
+                        }
+                        else
+                        {
+                            entityNode.setProperty("currentStreak", 1);
+                        }
+                    } catch (ParseException ex) {
+                        Logger.getLogger(KnowledgeBaseCreator.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                }
+                
+                // creating relationship between entity and newsNode
+                Relationship relationship = entityNode.createRelationshipTo(newsNode, RelTypes.APPEARED_IN);
+                relationship.setProperty("date", dateString);
+                relationship.setProperty("sentiment",structure.newsSentiment);
+                
+                // creating relationship entity to publisher node
+                relationship = entityNode.createRelationshipTo(publisherNode, RelTypes.PUBLISHED_BY);
+                /**TODO : maintain count - right now keeping just last one**/
+                relationship.setProperty("sentiment", structure.newsSentiment);
+                
+                // creating relationship entity to concept node
+                /**TODO : maintain count - right now just the last one**/
+                Node it_conceptNode;
+                for(int conceptList_i = 0; conceptList_i < conceptNodeList.size(); conceptList_i++)
+                {
+                    it_conceptNode = conceptNodeList.get(conceptList_i);
+                    relationship = entityNode.createRelationshipTo(it_conceptNode, RelTypes.ASSOCIATED_WITH);
+                }
+                
+                // creating Entity-->Entity OCCURED_TOGETHER relation
+                for(int j = 0; j < i; j++)
+                {
+                    String prevEntityName = entities.get(0).get(j);
+                    Node prevNode = nodeIndex.get(prevEntityName);
+                    relationship = prevNode.createRelationshipTo( entityNode, RelTypes.OCCURED_TOGETHER );
+                    relationship.setProperty("date",dateString);
+                    relationship.setProperty("sentiment",structure.newsSentiment); // general sentiment of news
+                    if(structure.Subject.contains(prevEntityName) && structure.Object.contains(entityName)) // in future don't keep name "Object"
+                    {
+                        relationship.setProperty("action",structure.action);
+                        relationship.setProperty("sentiment",structure.sentimentFromSubject);
+                    }
+                }
+            }
+        } catch (IOException ex) {
+            Logger.getLogger(KnowledgeBaseCreator.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (SAXException ex) {
+            Logger.getLogger(KnowledgeBaseCreator.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (ParserConfigurationException ex) {
+            Logger.getLogger(KnowledgeBaseCreator.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (XPathExpressionException ex) {
+            Logger.getLogger(KnowledgeBaseCreator.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+    
+    // except headline, rest others should be passed by reference
+    static void getSubjectObject_RelationAmongThem_Sentiment(String headline, subjObjSentiActionStrings structure)
+    {
+        try {
+            AlchemyAPI_RelationParams relationParams = new AlchemyAPI_RelationParams();
+            relationParams.setSentiment(true);
+            relationParams.setRequireEntities(true);
+            relationParams.setSentimentExcludeEntities(true);
+            Document relationInfo = alchemyObj.TextGetRelations(headline, relationParams);
+            Element relation1 = (Element)relationInfo.getElementsByTagName("relations").item(0);
+            Element ele_nl;
+//taking only one relation
+            ele_nl = (Element)relation1.getElementsByTagName("subject").item(0);
+            structure.Subject = ele_nl.getElementsByTagName("text").item(0).getTextContent();
+            
+            ele_nl = (Element)relation1.getElementsByTagName("object").item(0);
+            structure.Object = ele_nl.getElementsByTagName("text").item(0).getTextContent();
+            ele_nl = (Element)ele_nl.getElementsByTagName("sentimentFromSubject").item(0);
+            structure.sentimentFromSubject = ele_nl.getElementsByTagName("type").item(0).getTextContent();
+            
+            ele_nl = (Element)relation1.getElementsByTagName("action").item(0);
+            structure.action = ele_nl.getElementsByTagName("lemmatized").item(0).getTextContent();
+            
+            Document newsSentimentInfo = alchemyObj.TextGetTextSentiment(headline);
+            NodeList nl = newsSentimentInfo.getElementsByTagName("docSentiment");
+            Element eElement = (Element) nl.item(0);
+            structure.newsSentiment = eElement.getElementsByTagName("type").item(0).getTextContent();
+        } catch (IOException ex) {
+            Logger.getLogger(KnowledgeBaseCreator.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (SAXException ex) {
+            Logger.getLogger(KnowledgeBaseCreator.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (ParserConfigurationException ex) {
+            Logger.getLogger(KnowledgeBaseCreator.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (XPathExpressionException ex) {
+            Logger.getLogger(KnowledgeBaseCreator.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
     
     static void insertEntitiesInGraphDb(GraphDatabaseService graphDb) throws SQLException, FileNotFoundException, UnsupportedEncodingException, IOException, SAXException, ParserConfigurationException, XPathExpressionException, ParseException{
         String query;
@@ -141,225 +402,33 @@ public class KnowledgeBaseCreator {
             
             // date of publication
             String[] dateAndTime = timeOfNews.split(" ");
-            SimpleDateFormat ft = new SimpleDateFormat ("yyyy-MM-dd");
             String dateString = dateAndTime[0];
             try(Transaction tx = graphDb.beginTx())
             {
-                // Common Variables
-                Node entityNode, prevNode, newsNode, conceptNode, topicNode = null, publisherNode;
-                Relationship relationship;
-                Label label;
-                
                 // creating or getting Topic Node(s)
-                Document topicInfo = alchemyObj.TextGetCategory(headline);
-                NodeList categoryList = topicInfo.getElementsByTagName("category");
-                String likelyTopic = categoryList.item(0).getTextContent();
-                if(!likelyTopic.equals("unknown") && !likelyTopic.equals(""))
-                {
-                    if(nodeIndex.containsKey(likelyTopic))
-                    {
-                        topicNode = nodeIndex.get(likelyTopic);
-                    }
-                    else
-                    {
-                        label = DynamicLabel.label("Topic");
-                        topicNode = graphDb.createNode(label);
-                        topicNode.setProperty("name", likelyTopic);
-                        nodeIndex.put(likelyTopic, topicNode);
-                    }
-                }
+                Node topicNode = getTopicNode(headline);
                 
                 // creating or getting Concept Node(s)
-                label = DynamicLabel.label("Concept");
-                Document conceptInfo = alchemyObj.TextGetRankedConcepts(headline);
-                NodeList concepts = conceptInfo.getElementsByTagName("concept");
-                List<Node> conceptNodeList = new ArrayList<>();
-                for(int i = 0; i < concepts.getLength(); i++)
-                {
-                    Element it_concept = (Element) concepts.item(i);
-                    String conceptName = it_concept.getElementsByTagName("text").item(0).getTextContent();
-                    if(nodeIndex.containsKey(conceptName))
-                        conceptNode = nodeIndex.get(conceptName);
-                    else
-                    {
-                        conceptNode = graphDb.createNode(label);
-                        conceptNode.setProperty("name", conceptName);
-                        nodeIndex.put(conceptName, conceptNode);
-                    }
-                    
-                    // creating relationship CONCEPT_FALLS_IN
-                    if(!likelyTopic.equals("unknown") && !likelyTopic.equals(""))
-                    {
-                        relationship = conceptNode.createRelationshipTo( topicNode, RelTypes.CONCEPT_FALLS_IN );
-                    }
-                    conceptNodeList.add(conceptNode);
-                }
+                List<Node> conceptNodeList = getConceptNodeList(headline, topicNode);
                 
                 // creating or getting Publisher Node
-                if(!nodeIndex.containsKey(publisherId))
-                {
-                    label = DynamicLabel.label("Publisher");
-                    publisherNode = graphDb.createNode(label);
-                    publisherNode.setProperty("id", publisherId);
-                    nodeIndex.put(publisherId, publisherNode);
-                }
-                else
-                {
-                    publisherNode = nodeIndex.get(publisherId);
-                }
+                Node publisherNode = getPublisherNode(publisherId);
                 
                 // getting subject, object, relation among them and sentiment
-                String Subject = "", Object = "", sentimentFromSubject = "neutral", action = "";
-                AlchemyAPI_RelationParams relationParams = new AlchemyAPI_RelationParams();
-                relationParams.setSentiment(true);
-                relationParams.setRequireEntities(true);
-                relationParams.setSentimentExcludeEntities(true);
-                Document relationInfo = alchemyObj.TextGetRelations(headline, relationParams);
-                
-                Element relation1 = (Element)relationInfo.getElementsByTagName("relations").item(0);
-                Element ele_nl;
-//taking only one relation
-                try{
-                    ele_nl = (Element)relation1.getElementsByTagName("subject").item(0);
-                    Subject = ele_nl.getElementsByTagName("text").item(0).getTextContent();
-                }catch(Exception e)
-                {
-                    
-                }
-                try{
-                    ele_nl = (Element)relation1.getElementsByTagName("object").item(0);
-                    Object = ele_nl.getElementsByTagName("text").item(0).getTextContent();
-                    try{
-                        ele_nl = (Element)ele_nl.getElementsByTagName("sentimentFromSubject").item(0);
-                        sentimentFromSubject = ele_nl.getElementsByTagName("type").item(0).getTextContent();
-                    }catch(Exception e)
-                    {
-                        
-                    }
-                }catch(Exception e)
-                {
-                    
-                }
-                try{
-                    ele_nl = (Element)relation1.getElementsByTagName("action").item(0);
-                    action = ele_nl.getElementsByTagName("lemmatized").item(0).getTextContent();
-                }catch(Exception e)
-                {
-                    
-                }
-                
-                Document newsSentimentInfo = alchemyObj.TextGetTextSentiment(headline);
-                NodeList nl = newsSentimentInfo.getElementsByTagName("docSentiment");
-                Element eElement = (Element) nl.item(0);
-                String newsSentiment = eElement.getElementsByTagName("type").item(0).getTextContent();
+                subjObjSentiActionStrings structure = new subjObjSentiActionStrings();
+                structure.Subject = "";
+                structure.Object = "";
+                structure.sentimentFromSubject = "neutral";
+                structure.action = "";
+                structure.newsSentiment = "";
+                getSubjectObject_RelationAmongThem_Sentiment(headline, structure);
                 
                 // creating News Node
-                label = DynamicLabel.label("newsNode");
-                newsNode = graphDb.createNode(label);   // assuming news Headline will not repeat
-                newsNode.setProperty("headline", headline);
-                newsNode.setProperty("date", dateString);
-                newsNode.setProperty("sentiment", newsSentiment);
-                
+                Node newsNode = getNewsNode(headline, dateString, structure.newsSentiment);
                 
                 // creating entity nodes
-                List<List<String>> entities = getEntities_AndTypes_AndSentiment(headline);
-                for(int i = 0; i < entities.get(0).size(); i++)
-                {
-                    String entityName = entities.get(0).get(i);
-                    String entityType = entities.get(1).get(i);
-                    String entitySentiment = entities.get(2).get(i);
-                    
-                    //insert in neo4j
-                    if(!nodeIndex.containsKey(entityName))
-                    {
-                        label = DynamicLabel.label("Entity");
-                        entityNode = graphDb.createNode(label);
-                        entityNode.setProperty("type", entityType);
-                        entityNode.setProperty("name", entityName);
-                        
-                        entityNode.setProperty("generalSentimentOfSociety", entitySentiment);
-                        nodeIndex.put(entityName, entityNode);
-                        
-                        entityNode.setProperty("noOfTimesAppeared", 1);
-                        entityNode.setProperty("daysInLongestStreak", 1);
-                        entityNode.setProperty("currentStreak", 1);
-                        entityNode.setProperty("endDayOfLongestStreak", dateString); // our purpose is basically to capture new appearance of entity so taking just start
-                    }
-                    else
-                    {
-                        entityNode = nodeIndex.get(entityName);
-                        // for the case if this was created due to being concept
-                        try{
-                            entityNode.getProperty("noOfTimesAppeared");
-                        }
-                        catch(Exception ex)
-                        {
-                            entityNode.setProperty("type", entityType);
-                            entityNode.setProperty("generalSentimentOfSociety", entitySentiment);
-                            entityNode.setProperty("noOfTimesAppeared", 0);
-                            entityNode.setProperty("daysInLongestStreak", 1);
-                            entityNode.setProperty("currentStreak", 1);
-                            entityNode.setProperty("endDayOfLongestStreak", dateString); // our purpose is basically to capture new appearance of entity so taking just start
-                        }
-                        
-                        Integer newCount = Integer.parseInt(entityNode.getProperty("noOfTimesAppeared").toString()) + 1;
-                        entityNode.setProperty("noOfTimesAppeared", newCount.toString());
-                        
-                        String lastDate = entityNode.getProperty("endDayOfLongestStreak").toString();
-                        
-                        entityNode.setProperty("endDayOfLongestStreak", dateString);
-                        
-                        if(ft.parse(dateString).getTime() - ft.parse(lastDate).getTime() == (24 * 60 * 60 * 1000))
-                        {
-                            Integer currentStreak = Integer.parseInt((String)entityNode.getProperty("currentStreak")) + 1;
-                            entityNode.setProperty("currentStreak", currentStreak.toString());
-                            Integer longestStreak = Integer.parseInt((String)entityNode.getProperty("daysInLongestStreak"));
-                            if(currentStreak > longestStreak)
-                            {
-                                entityNode.setProperty("daysInLongestStreak", currentStreak.toString());
-                            }
-                        }
-                        else
-                        {
-                            entityNode.setProperty("currentStreak", 1);
-                        }
-                    }
-                    
-                    // creating relationship between entity and newsNode
-                    relationship = entityNode.createRelationshipTo(newsNode, RelTypes.APPEARED_IN);
-                    relationship.setProperty("date", dateString);
-                    relationship.setProperty("sentiment",newsSentiment);
-                    
-                    // creating relationship entity to publisher node
-                    relationship = entityNode.createRelationshipTo(publisherNode, RelTypes.PUBLISHED_BY);
-                    /**TODO : maintain count - right now keeping just last one**/
-                    relationship.setProperty("sentiment", newsSentiment);
-                    
-                    // creating relationship entity to concept node
-                    /**TODO : maintain count - right now just the last one**/
-                    Node it_conceptNode;
-                    for(int conceptList_i = 0; conceptList_i < conceptNodeList.size(); conceptList_i++)
-                    {
-                        it_conceptNode = conceptNodeList.get(conceptList_i);
-                        relationship = entityNode.createRelationshipTo(it_conceptNode, RelTypes.ASSOCIATED_WITH);
-                    }
-                    
-                    // creating Entity-->Entity OCCURED_TOGETHER relation
-                    for(int j = 0; j < i; j++)
-                    {
-                        String prevEntityName = entities.get(0).get(j);
-                        prevNode = nodeIndex.get(prevEntityName);
-                        relationship = prevNode.createRelationshipTo( entityNode, RelTypes.OCCURED_TOGETHER );
-                        relationship.setProperty("date",dateString);
-                        relationship.setProperty("sentiment",newsSentiment); // general sentiment of news
-                        if(Subject.contains(prevEntityName) && Object.contains(entityName))
-                        {
-                            relationship.setProperty("action",action);
-                            relationship.setProperty("sentiment",sentimentFromSubject);
-                        }
-                    }
-                }
-                // Database operations go here
+                createAndInsertEntities(headline, newsNode, dateString, publisherNode, conceptNodeList, structure);
+                
                 tx.success();
             }
         }
